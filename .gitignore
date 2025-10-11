@@ -1,0 +1,19 @@
+# Irrelevant folders
+archive
+
+# Python
+__pycache__
+.ipynb_checkpoints
+.python-version
+mobile-net-food-101
+
+# # Datasets
+# data/food-101
+# data/demo
+
+# Created files/folders
+mobilenet_v3_model_weights.pth
+results
+checkpoint
+
+data

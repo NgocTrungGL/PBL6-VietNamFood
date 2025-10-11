@@ -1,0 +1,68 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Classification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+        }
+        img {
+            max-width: 300px;
+            max-height: 300px;
+            display: none; /* Initially hidden */
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Food Image Classification</h1>
+    <form id="upload-form" action="/predict" method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" accept="image/*" required>
+        <br>
+        <input type="submit" value="Get prediction">
+    </form>
+    <img id="image-preview" alt="Image Preview">
+    <div id="result"></div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const imagePreview = document.getElementById('image-preview');
+        const fileInput = form.querySelector('input[type="file"]');
+        const resultDiv = document.getElementById('result');
+
+        // Handle file selection and show image preview
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imagePreview.src = event.target.result;
+                    imagePreview.style.display = 'block'; // Show the image
+                };
+                reader.readAsDataURL(file); // Read file as Data URL
+            }
+            // Clear the previous prediction
+            resultDiv.innerHTML = '';
+        };
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const response = await fetch('/predict', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            resultDiv.innerHTML = `<h2>Prediction:</h2>
+                                   <p>Class ID: ${data.class_id}</p>
+                                   <p>Class Name: ${data.class_name}</p>`;
+        };
+    </script>
+</body>
+</html>
