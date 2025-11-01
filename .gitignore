@@ -15,5 +15,5 @@ mobile-net-food-101
 mobilenet_v3_model_weights.pth
 results
 checkpoint
-
+.vscode
 data
