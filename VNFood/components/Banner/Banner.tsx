@@ -14,7 +14,7 @@ export default function Banner() {
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Auto slide mỗi 3s
+  // Tự động chuyển slide mỗi 3 giây
   useEffect(() => {
     const interval = setInterval(() => {
       const nextIndex = (currentIndex + 1) % banners.length;
@@ -25,7 +25,7 @@ export default function Banner() {
     return () => clearInterval(interval);
   }, [currentIndex]);
 
-  // Cập nhật index khi người dùng vuốt tay
+  // Cập nhật index khi người dùng vuốt
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index);
@@ -33,7 +33,7 @@ export default function Banner() {
   }).current;
 
   return (
-    <View style={{ height: 220 }}>
+    <View style={styles.container}>
       <FlatList
         ref={flatListRef}
         data={banners}
@@ -45,39 +45,12 @@ export default function Banner() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
       />
-
-      {/* Dot indicator */}
-      <View style={styles.dotsContainer}>
-        {banners.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              currentIndex === index ? styles.activeDot : null,
-            ]}
-          />
-        ))}
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  dotsContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#ccc",
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: "#ff6600", // dot đang active
-    width: 10,
-    height: 10,
+  container: {
+    height: 220,
   },
 });
