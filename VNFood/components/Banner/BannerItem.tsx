@@ -8,15 +8,12 @@ type Props = {
 };
 
 export default function BannerItem({ image }: Props) {
-  return (
-    <Image source={image} style={styles.image} resizeMode="cover" />
-  );
+  return <Image source={image} style={styles.image} resizeMode="cover" />;
 }
 
 const styles = StyleSheet.create({
   image: {
     width: width,
     height: 200,
-    borderRadius: 10,
   },
 });
