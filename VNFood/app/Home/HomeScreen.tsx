@@ -8,215 +8,48 @@ import {
   ScrollView,
   Modal,
   ImageBackground,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Banner from "../../components/Banner/Banner";
 import FoodCard, { FoodDetails } from "../../components/FoodCard/FoodCard";
 import { useNavigation } from "@react-navigation/native";
-
-// ----------------- NEW API INTERFACES -----------------
-// (Dựa trên JSON bạn cung cấp, bỏ qua timestamps)
+import { API_HOME_URL } from "@env";
 
 interface Category {
   category_id: number;
   category_name: string;
-  description: string;
-  image: string; // Sẽ dùng string, nhưng mock data tạm dùng require
+  description: string | null;
+  image: string | null;
 }
 
 interface Region {
   region_id: number;
   region_name: string;
-  description: string;
-  region_image: string; // Sẽ dùng string, nhưng mock data tạm dùng require
+  description: string | null;
+  region_image: string | null;
   parent_image: string | null;
   parent_region_id: number | null;
 }
 
-// Interface cho dữ liệu Food thô từ API
 interface RawFood {
-  food_id: number; // API mới dùng number
-  category_id: number;
+  food_id: number;
   name: string;
   description: string;
-  main_image: any; // Tạm dùng 'any' để chứa 'require' cho UI
-  origin_region_id: number;
+  main_image: string; // base64 từ API
   avg_rating: number;
-  most_popular: boolean;
+  most_popular: number; // 0 hoặc 1
+  category_id: number;
+  origin_region_id: number;
 }
 
-// ----------------- MOCK DATA (THEO CẤU TRÚC API MỚI) -----------------
-
-const mockCategories: Category[] = [
-  {
-    category_id: 1,
-    category_name: "Noodles",
-    description: "Các món mì, phở, bún",
-    image: "base64-string-or-url",
-  },
-  {
-    category_id: 2,
-    category_name: "Drink",
-    description: "Các loại đồ uống",
-    image: "base64-string-or-url",
-  },
-  {
-    category_id: 3,
-    category_name: "Rice",
-    description: "Các món cơm",
-    image: "base64-string-or-url",
-  },
-  {
-    category_id: 4,
-    category_name: "Appetizer",
-    description: "Các món khai vị",
-    image: "base64-string-or-url",
-  },
-  {
-    category_id: 5,
-    category_name: "Pancake",
-    description: "Các loại bánh xèo, bánh khọt",
-    image: "base64-string-or-url",
-  },
-];
-
-const mockRegions: Region[] = [
-  {
-    region_id: 101,
-    region_name: "Hà Nội",
-    description: "Ẩm thực thủ đô",
-    region_image: "url-or-base64",
-    parent_image: "url-or-base64",
-    parent_region_id: 1, // Giả sử 1 là "Miền Bắc"
-  },
-  {
-    region_id: 102,
-    region_name: "Huế",
-    description: "Ẩm thực Cố đô",
-    region_image: "url-or-base64",
-    parent_image: "url-or-base64",
-    parent_region_id: 2, // Giả sử 2 là "Miền Trung"
-  },
-  {
-    region_id: 103,
-    region_name: "Sài Gòn",
-    description: "Ẩm thực phương Nam",
-    region_image: "url-or-base64",
-    parent_image: "url-or-base64",
-    parent_region_id: 3, // Giả sử 3 là "Miền Nam"
-  },
-  {
-    region_id: 104,
-    region_name: "Đà Nẵng",
-    description: "Ẩm thực miền Trung",
-    region_image: "url-or-base64",
-    parent_image: "url-or-base64",
-    parent_region_id: 2,
-  },
-  {
-    region_id: 105,
-    region_name: "Miền Tây",
-    description: "Ẩm thực sông nước",
-    region_image: "url-or-base64",
-    parent_image: "url-or-base64",
-    parent_region_id: 3,
-  },
-];
-
-// Dữ liệu Food thô (như từ API)
-const mockRawFoods: RawFood[] = [
-  {
-    food_id: 1,
-    name: "Phở Bò",
-    main_image: require("../../assets/images/bunbo.jpg"),
-    avg_rating: 4.8,
-    most_popular: true,
-    category_id: 1, // Noodles
-    origin_region_id: 101, // Hà Nội
-    description: "Phở bò truyền thống Hà Nội",
-  },
-  {
-    food_id: 2,
-    name: "Bún Chả",
-    main_image: require("../../assets/images/buncha.jpg"),
-    avg_rating: 4.7,
-    most_popular: true,
-    category_id: 1, // Noodles
-    origin_region_id: 101, // Hà Nội
-    description: "Bún chả que tre",
-  },
-  {
-    food_id: 3,
-    name: "Cà Phê Sữa Đá",
-    main_image: require("../../assets/banners/banhmi.webp"),
-    avg_rating: 4.9,
-    most_popular: true,
-    category_id: 2, // Drink
-    origin_region_id: 103, // Sài Gòn
-    description: "Cà phê sữa đá Sài Gòn",
-  },
-  {
-    food_id: 4,
-    name: "Cơm Tấm Sườn Bì Chả",
-    main_image: require("../../assets/images/comtam.jpg"),
-    avg_rating: 4.7,
-    most_popular: true,
-    category_id: 3, // Rice
-    origin_region_id: 103, // Sài Gòn
-    description: "Cơm tấm sườn bì chả ốp la",
-  },
-  {
-    food_id: 5,
-    name: "Trà Chanh",
-    main_image: require("../../assets/images/goicuon.jpg"),
-    avg_rating: 4.5,
-    most_popular: false,
-    category_id: 2, // Drink
-    origin_region_id: 101, // Hà Nội
-    description: "Trà chanh vỉa hè",
-  },
-  {
-    food_id: 6,
-    name: "Bánh Xèo",
-    main_image: require("../../assets/images/banhxeo.webp"),
-    avg_rating: 4.6,
-    most_popular: false,
-    category_id: 5, // Pancake
-    origin_region_id: 105, // Miền Tây
-    description: "Bánh xèo miền Tây giòn rụm",
-  },
-  {
-    food_id: 7,
-    name: "Mì Quảng",
-    main_image: require("../../assets/images/miquang.webp"),
-    avg_rating: 4.7,
-    most_popular: true,
-    category_id: 1, // Noodles
-    origin_region_id: 104, // Đà Nẵng
-    description: "Mì Quảng ếch đặc sản",
-  },
-  {
-    food_id: 8,
-    name: "Chả Giò (Nem Rán)",
-    main_image: require("../../assets/images/chagio.jpg"),
-    avg_rating: 4.5,
-    most_popular: false,
-    category_id: 4, // Appetizer
-    origin_region_id: 101, // Hà Nội
-    description: "Chả giò giòn tan",
-  },
-];
-
-// ----------------- COMPONENT: FoodSection -----------------
-interface FoodSectionProps {
-  title: string;
-  data: FoodDetails[]; // Vẫn dùng FoodDetails mà FoodCard yêu cầu
-}
-
-const FoodSection: React.FC<FoodSectionProps> = ({ title, data }) => {
+// Component hiển thị 1 section món ăn
+const FoodSection: React.FC<{ title: string; data: FoodDetails[] }> = ({
+  title,
+  data,
+}) => {
   const navigation = useNavigation<any>();
-
   return (
     <View style={styles.sectionContainer}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -224,8 +57,6 @@ const FoodSection: React.FC<FoodSectionProps> = ({ title, data }) => {
         <FlatList
           data={data}
           renderItem={({ item }) => (
-            // *** ĐÃ CẬP NHẬT Ở ĐÂY ***
-            // Sử dụng trực tiếp prop 'onPress' của FoodCard
             <FoodCard
               food={item}
               onPress={() =>
@@ -233,7 +64,6 @@ const FoodSection: React.FC<FoodSectionProps> = ({ title, data }) => {
               }
             />
           )}
-          // API mới dùng food_id là number, keyExtractor cần convert sang string
           keyExtractor={(item) => item.food_id.toString()}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -246,50 +76,78 @@ const FoodSection: React.FC<FoodSectionProps> = ({ title, data }) => {
   );
 };
 
-// ----------------- COMPONENT: HomeScreen -----------------
 const HomeScreen: React.FC = () => {
-  const [randomCategory, setRandomCategory] = useState<Category | null>(null);
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [foods, setFoods] = useState<RawFood[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [randomCategory, setRandomCategory] = useState<Category | null>(null);
 
-  // Random category (trừ Drink) - Dùng mockCategories mới
+  // 👉 Cập nhật địa chỉ IP của bạn tại đây:
+  const BASE_URL = `${API_HOME_URL}`;
+
   useEffect(() => {
-    const nonDrinkCategories = mockCategories.filter(
-      (c) => c.category_name.toLowerCase() !== "drink"
-    );
-    if (nonDrinkCategories.length > 0) {
-      const randomIndex = Math.floor(Math.random() * nonDrinkCategories.length);
-      setRandomCategory(nonDrinkCategories[randomIndex]);
-    }
+    const fetchData = async () => {
+      try {
+        const [foodsRes, catRes, regRes] = await Promise.all([
+          fetch(`${BASE_URL}/foods`),
+          fetch(`${BASE_URL}/categories`),
+          fetch(`${BASE_URL}/regions`),
+        ]);
+
+        const [foodsData, categoriesData, regionsData] = await Promise.all([
+          foodsRes.json(),
+          catRes.json(),
+          regRes.json(),
+        ]);
+
+        setFoods(foodsData);
+        setCategories(categoriesData);
+        setRegions(regionsData);
+
+        // Random category (trừ Drink hoặc trống)
+        const nonDrink = categoriesData.filter(
+          (c: Category) =>
+            c.category_name &&
+            !c.category_name.toLowerCase().includes("drink") &&
+            !c.category_name.toLowerCase().includes("đồ uống")
+        );
+
+        if (nonDrink.length > 0) {
+          const random = Math.floor(Math.random() * nonDrink.length);
+          setRandomCategory(nonDrink[random]);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải dữ liệu:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  // *** LOGIC QUAN TRỌNG ***
-  // Xử lý (join) dữ liệu thô để tạo ra FoodDetails mà UI cần
-  // Đây là bước đệm trước khi chuyển sang API thật
+  // Xử lý dữ liệu thành FoodDetails để hiển thị
   const processedFoodDetails: FoodDetails[] = useMemo(() => {
-    // Tạo lookup maps để 'join' dữ liệu hiệu quả
-    const categoryMap = new Map(
-      mockCategories.map((c) => [c.category_id, c.category_name])
+    const catMap = new Map(
+      categories.map((c) => [c.category_id, c.category_name])
     );
-    const regionMap = new Map(
-      mockRegions.map((r) => [r.region_id, r.region_name])
-    );
+    const regMap = new Map(regions.map((r) => [r.region_id, r.region_name]));
 
-    return mockRawFoods.map((food) => ({
+    return foods.map((food) => ({
       ...food,
-      // Chuyển đổi food_id (number) sang string để khớp với interface FoodDetails cũ
       food_id: food.food_id.toString(),
-
-      // Thêm category_name và region_name mà FoodCard/FoodSection cần
-      category_name: categoryMap.get(food.category_id) || "Unknown Category",
-      region_name: regionMap.get(food.origin_region_id) || "Unknown Region",
-
-      // Thêm các trường khác nếu FoodDetails yêu cầu
-      // ví dụ: description (đã có sẵn trong RawFood)
+      avg_rating: food.avg_rating,
+      most_popular: food.most_popular === 1,
+      category_name: catMap.get(food.category_id) || "Unknown",
+      region_name: regMap.get(food.origin_region_id) || "Unknown",
+      // Chuyển ảnh base64 sang URI
+      main_image: { uri: `data:image/jpeg;base64,${food.main_image}` },
     }));
-  }, []); // Phụ thuộc rỗng vì data là mock (không đổi)
+  }, [foods, categories, regions]);
 
-  // Các bộ lọc (useMemo) bâyG giờ sẽ dùng 'processedFoodDetails'
   const mostPopularFoods = useMemo(
     () => processedFoodDetails.filter((f) => f.most_popular),
     [processedFoodDetails]
@@ -298,7 +156,9 @@ const HomeScreen: React.FC = () => {
   const mostPopularDrinks = useMemo(
     () =>
       processedFoodDetails.filter(
-        (f) => f.category_name.toLowerCase() === "drink"
+        (f) =>
+          f.category_name.toLowerCase().includes("drink") ||
+          f.category_name.toLowerCase().includes("đồ uống")
       ),
     [processedFoodDetails]
   );
@@ -306,7 +166,7 @@ const HomeScreen: React.FC = () => {
   const randomCategoryFoods = useMemo(() => {
     if (!randomCategory) return [];
     return processedFoodDetails.filter(
-      (f) => f.category_id === randomCategory.category_id
+      (f) => f.category_name === randomCategory.category_name
     );
   }, [randomCategory, processedFoodDetails]);
 
@@ -314,6 +174,17 @@ const HomeScreen: React.FC = () => {
     setSelectedRegion(region);
     setShowLocationModal(false);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center" }]}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={{ textAlign: "center", marginTop: 10 }}>
+          Đang tải dữ liệu...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -325,7 +196,6 @@ const HomeScreen: React.FC = () => {
           marginBottom: 0,
         }}
       >
-        {/* Header */}
         <LinearGradient
           colors={["#4CAF50", "#66BB6A", "#81C784"]}
           style={styles.header}
@@ -338,10 +208,8 @@ const HomeScreen: React.FC = () => {
           </Text>
         </LinearGradient>
 
-        {/* Banner */}
         <Banner />
 
-        {/* Giới thiệu */}
         <View style={styles.welcomeContainer}>
           <Text style={styles.welcomeTitle}>Where to eat local?</Text>
           <Text style={styles.welcomeSubtitle}>
@@ -350,14 +218,12 @@ const HomeScreen: React.FC = () => {
           </Text>
         </View>
 
-        {/* Ảnh nền */}
         <ImageBackground
           source={require("../../assets/bgimg.jpg")}
           style={styles.background}
           resizeMode="cover"
         >
           <View style={styles.overlay}>
-            {/* Bộ lọc */}
             <View style={styles.filterContainer}>
               <TouchableOpacity
                 style={styles.filterButton}
@@ -377,7 +243,6 @@ const HomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Sections (Dùng dữ liệu đã qua xử lý) */}
             <FoodSection
               title="Most popular Vietnamese food"
               data={mostPopularFoods}
@@ -396,7 +261,7 @@ const HomeScreen: React.FC = () => {
         </ImageBackground>
       </ScrollView>
 
-      {/* Modal chọn vùng miền (Dùng mockRegions mới) */}
+      {/* Modal chọn vùng miền */}
       <Modal
         visible={showLocationModal}
         animationType="slide"
@@ -406,8 +271,7 @@ const HomeScreen: React.FC = () => {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select a Region</Text>
-
-            {mockRegions.map((region) => (
+            {regions.map((region) => (
               <TouchableOpacity
                 key={region.region_id}
                 style={styles.regionItem}
@@ -435,20 +299,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
-    paddingBottom: 0,
   },
   header: {
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
     alignItems: "center",
-    justifyContent: "center",
   },
   headerText: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 4,
   },
   headerSubtext: {
     fontSize: 14,
@@ -460,7 +321,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     alignItems: "center",
     backgroundColor: "#fff",
-    marginTop: -10, // dính sát banner
   },
   welcomeTitle: {
     fontSize: 22,
@@ -558,8 +418,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
-    marginTop: 0,
-    paddingTop: 0,
   },
   overlay: {
     flex: 1,
