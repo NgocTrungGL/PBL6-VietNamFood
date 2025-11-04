@@ -1,11 +1,11 @@
-// Tệp: components/FoodCard.tsx
+// components/FoodCard.tsx
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 
 export interface FoodDetails {
   food_id: string;
   name: string;
-  main_image: any;
+  main_image: { uri: string } | number;
   avg_rating: number;
   category_name: string;
   region_name: string;
@@ -25,10 +25,20 @@ const FoodCard: React.FC<FoodCardProps> = ({ food, onPress }) => {
       onPress={() => onPress?.(food.food_id)}
       activeOpacity={0.85}
     >
-      {/* Ảnh món ăn */}
-      <Image source={food.main_image} style={styles.image} resizeMode="cover" />
+      <Image
+        source={
+          typeof food.main_image === "number"
+            ? food.main_image
+            : food.main_image &&
+                typeof food.main_image === "object" &&
+                "uri" in food.main_image
+              ? food.main_image
+              : { uri: String(food.main_image) }
+        }
+        style={styles.image}
+        resizeMode="cover"
+      />
 
-      {/* Phần thông tin */}
       <View style={styles.infoContainer}>
         <Text style={styles.categoryName} numberOfLines={1}>
           {food.category_name}
@@ -39,7 +49,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ food, onPress }) => {
         </Text>
 
         <View style={styles.detailsRow}>
-          <Text style={styles.detailText}>⭐ {food.avg_rating.toFixed(1)}</Text>
+          <Text style={styles.detailText}>
+            ⭐ {food.avg_rating ? food.avg_rating.toFixed(1) : "N/A"}
+          </Text>
           <Text style={styles.detailText} numberOfLines={1}>
             📍 {food.region_name}
           </Text>
@@ -53,7 +65,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: 180,
     height: 240,
-    borderRadius: 6, // 🔹 Bo góc nhỏ nhất
+    borderRadius: 6,
     overflow: "hidden",
     marginRight: 15,
     backgroundColor: "#fff",
@@ -65,14 +77,14 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: "65%", // 🔹 Ảnh chỉ chiếm 65% chiều cao
+    height: "65%",
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
   },
   infoContainer: {
     flex: 1,
     padding: 10,
-    backgroundColor: "#fff", // 🔹 Phần chữ nền trắng
+    backgroundColor: "#fff",
   },
   categoryName: {
     fontSize: 12,
