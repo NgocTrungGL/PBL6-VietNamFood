@@ -8,7 +8,7 @@ import CameraScreen from "../../app/Camera/CameraScreen";
 import ChatboxScreen from "../../app/Chat/ChatboxScreen";
 import ExploreScreen from "../../app/Explore/ExploreScreen";
 import MapScreen from "../../app/Map/MapScreen";
-import FoodDetailScreen from "../../components/FoodDetail/FoodDetailScreen";
+import ProfileScreen from "../../app/User/Profile";
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabs() {
@@ -16,7 +16,7 @@ export default function BottomTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false, // không hiện text
+        tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: "#fff",
           borderTopWidth: 0,
@@ -31,7 +31,7 @@ export default function BottomTabs() {
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={require("../../assets/icon/home_icon.png")} // icon giả
+              source={require("../../assets/icon/home_icon.png")}
               style={{
                 width: 25,
                 height: 25,
@@ -41,7 +41,7 @@ export default function BottomTabs() {
           ),
         }}
       />
-      <Tab.Screen name="FoodDetailScreen" component={FoodDetailScreen} />
+
       <Tab.Screen
         name="Camera"
         component={CameraScreen}
@@ -58,13 +58,14 @@ export default function BottomTabs() {
           ),
         }}
       />
+
       <Tab.Screen
         name="Chatbox"
         component={ChatboxScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={require("../../assets/icon/chat_1.png")}
+              source={require("../../assets/icon/chat.png")}
               style={{
                 width: 25,
                 height: 25,
@@ -74,6 +75,7 @@ export default function BottomTabs() {
           ),
         }}
       />
+
       <Tab.Screen
         name="Explore"
         component={ExploreScreen}
@@ -90,13 +92,30 @@ export default function BottomTabs() {
           ),
         }}
       />
+
       <Tab.Screen
-        name="map"
+        name="Map"
         component={MapScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={require("../../assets/icon/explore-icon.png")}
+              source={require("../../assets/icon/map.png")}
+              style={{
+                width: 25,
+                height: 25,
+                tintColor: focused ? "blue" : "gray",
+              }}
+            />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require("../../assets/icon/profile.png")}
               style={{
                 width: 25,
                 height: 25,
