@@ -12,7 +12,7 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystemLegacy from "expo-file-system/legacy";
-
+import { API_CAMERA_URL } from "@env";
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function CameraScreen() {
@@ -88,13 +88,14 @@ export default function CameraScreen() {
         encoding: FileSystemLegacy.EncodingType.Base64,
       });
 
-      const response = await fetch("http://172.20.10.6:5000/predict", {
+      const response = await fetch(`${API_CAMERA_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64 }),
       });
 
       const data = await response.json();
+      console.log("Response status:", data);
       setPrediction(data.class_name);
     } catch (error) {
       console.log("Error sending image to model", error);
