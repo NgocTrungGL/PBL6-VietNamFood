@@ -1,13 +1,13 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-// import { RootStackParamList } from "./types"; // nếu bạn tách type riêng
 import FoodDetailScreen from "../components/FoodDetail/FoodDetailScreen";
 import LoginScreen from "../app/Auth/LoginScreen";
 import RegisterScreen from "../app/Auth/RegisterScreen";
 import Update from "../app/User/Update";
-import BottomTabs from "../components/Navigation/BottomTabs"; // ✅ import đúng
+import BottomTabs from "../components/Navigation/BottomTabs";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
 export type RootStackParamList = {
   LoginScreen: undefined;
   RegisterScreen: undefined;
@@ -15,9 +15,14 @@ export type RootStackParamList = {
   FoodDetailScreen: { foodId?: number };
   Update: undefined;
 };
-export default function AppNavigator() {
-  const isLoggedIn = true;
 
+export default function AppNavigator({
+  isLoggedIn,
+  setIsLoggedIn,
+}: {
+  isLoggedIn: boolean;
+  setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isLoggedIn ? (
@@ -28,8 +33,16 @@ export default function AppNavigator() {
         </>
       ) : (
         <>
-          <Stack.Screen name="LoginScreen" component={LoginScreen} />
-          <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+          <Stack.Screen name="LoginScreen">
+            {(props) => (
+              <LoginScreen {...props} setIsLoggedIn={setIsLoggedIn} />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="RegisterScreen">
+            {(props) => (
+              <RegisterScreen {...props} setIsLoggedIn={setIsLoggedIn} />
+            )}
+          </Stack.Screen>
         </>
       )}
     </Stack.Navigator>
