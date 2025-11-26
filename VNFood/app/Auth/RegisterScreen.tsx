@@ -12,9 +12,14 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { API_USER_URL } from "@env";
+// 👇 1. Import Context
+import { useAuth } from "../context/AuthContext";
 
-export default function RegisterScreen({ setIsLoggedIn }: any) {
+export default function RegisterScreen() {
   const navigation = useNavigation<any>();
+
+  // 👇 2. Lấy hàm login từ Context
+  const { login } = useAuth();
 
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
@@ -40,22 +45,19 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
     setStatusColor("red");
     setLoading(true);
 
+    // --- Validation (Giữ nguyên logic cũ của bạn) ---
     const newErrors: any = {};
     if (!username) newErrors.username = "Vui lòng nhập tên người dùng";
     if (!fullName) newErrors.fullName = "Vui lòng nhập họ và tên";
-
     if (!email) newErrors.email = "Vui lòng nhập email";
     else if (!validateEmail(email)) newErrors.email = "Email không hợp lệ";
-
     if (!password) newErrors.password = "Vui lòng nhập mật khẩu";
     else if (!validatePassword(password))
-      newErrors.password =
-        "Mật khẩu phải ≥8 ký tự, gồm chữ hoa, số và ký tự đặc biệt";
-
+      newErrors.password = "Mật khẩu phải ≥8 ký tự, chữ hoa, số, ký tự đặc biệt";
     if (!passwordConfirmation)
       newErrors.passwordConfirmation = "Vui lòng nhập lại mật khẩu";
     else if (password !== passwordConfirmation)
-      newErrors.passwordConfirmation = "Mật khẩu xác nhận không trùng khớp";
+      newErrors.passwordConfirmation = "Mật khẩu xác nhận không khớp";
 
     setErrors(newErrors);
 
@@ -64,17 +66,15 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
       return;
     }
 
-    // *** SỬA LỖI Ở ĐÂY ***
     const payload = {
       email,
       full_name: fullName,
       username,
       password,
-      password_confirmation: passwordConfirmation, // Đã sửa từ 'passwordconfirmation'
+      password_confirmation: passwordConfirmation,
     };
-    // *********************
 
-    try {
+try {
       const response = await fetch(`${API_USER_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,22 +83,35 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
 
       const data = await response.json();
 
+      // --- KIỂM TRA KẾT QUẢ ---
       if (response.ok) {
+        // 1. Thành công: Thông báo màu xanh
         setStatusColor("green");
         setStatusMessage("🎉 Đăng ký thành công!");
-        setTimeout(() => {
-          setIsLoggedIn(true);
-        }, 1200);
-      } else {
-        // Ghi log lỗi chi tiết để debug
-        // console.error("Lỗi đăng ký - Chi tiết từ server:", JSON.stringify(data, null, 2));
 
-        // Hiển thị lỗi chi tiết hơn (nếu server có trả về 'errors')
+        // 2. Đợi 1.2s rồi TỰ ĐỘNG ĐĂNG NHẬP để vào MainTabs
+        setTimeout(async () => {
+          // Nếu Server trả về thông tin user (giống api login)
+          if (data.user) {
+            await login(data.user);
+            // 🚀 Dòng này chạy xong -> App tự động chuyển sang MainTabs ngay lập tức
+          } else {
+            // Nếu Server chỉ báo OK mà không trả về data user thì đành về Login
+            console.log("Server không trả về user object, chuyển về Login");
+            navigation.navigate("LoginScreen");
+          }
+        }, 1200);
+
+      } else {
+        // 3. Thất bại: Thông báo màu đỏ
+        setStatusColor("red");
         const errorMessage = data.error || data.message || (data.errors ? "Dữ liệu không hợp lệ" : "Đăng ký thất bại!");
         setStatusMessage(errorMessage);
       }
+
     } catch (error) {
-      // console.error("Lỗi kết nối:", error);
+      // 4. Lỗi mạng
+      setStatusColor("red");
       setStatusMessage("Không thể kết nối đến máy chủ.");
     } finally {
       setLoading(false);
@@ -111,7 +124,7 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ImageBackground
-        source={require("../../assets/bgimg.jpg")} // Đảm bảo bạn có ảnh này trong assets
+        source={require("../../assets/bgimg.jpg")}
         style={styles.background}
         resizeMode="cover"
       >
@@ -127,9 +140,7 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
             autoCapitalize="none"
             style={styles.input}
           />
-          {errors.username && (
-            <Text style={styles.errorText}>{errors.username}</Text>
-          )}
+          {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
 
           <TextInput
             placeholder="Họ và tên"
@@ -138,9 +149,7 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
             onChangeText={setFullName}
             style={styles.input}
           />
-          {errors.fullName && (
-            <Text style={styles.errorText}>{errors.fullName}</Text>
-          )}
+          {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
 
           <TextInput
             placeholder="Email"
@@ -161,9 +170,7 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
             secureTextEntry
             style={styles.input}
           />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password}</Text>
-          )}
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
           <TextInput
             placeholder="Xác nhận mật khẩu"
@@ -173,11 +180,7 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
             secureTextEntry
             style={styles.input}
           />
-          {errors.passwordConfirmation && (
-            <Text style={styles.errorText}>
-              {errors.passwordConfirmation}
-            </Text>
-          )}
+          {errors.passwordConfirmation && <Text style={styles.errorText}>{errors.passwordConfirmation}</Text>}
 
           {statusMessage && (
             <Text style={[styles.statusText, { color: statusColor }]}>
@@ -212,40 +215,51 @@ export default function RegisterScreen({ setIsLoggedIn }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { flex: 1, justifyContent: "center" },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)" },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
   formContainer: {
     padding: 24,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 20,
     marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 30,
+    fontWeight: "800",
+    marginBottom: 25,
     color: "#333",
     textAlign: "center",
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F9F9F9",
     paddingHorizontal: 15,
     paddingVertical: 12,
-    borderRadius: 10,
-    marginBottom: 6,
+    borderRadius: 12,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#E0E0E0",
+    fontSize: 15,
   },
-  errorText: { color: "red", fontSize: 13, marginBottom: 8, marginLeft: 4 },
+  errorText: { color: "#dc3545", fontSize: 12, marginBottom: 8, marginLeft: 4 },
   statusText: { textAlign: "center", fontWeight: "600", marginBottom: 10 },
   button: {
-    backgroundColor: "#28a745",
-    borderRadius: 10,
+    backgroundColor: "#66BB6A", // Màu xanh lá
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 10,
     marginBottom: 20,
+    shadowColor: "#66BB6A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  linkText: { textAlign: "center", color: "#555" },
-  linkHighlight: { color: "#28a745", fontWeight: "600" },
+  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  linkText: { textAlign: "center", color: "#666" },
+  linkHighlight: { color: "#66BB6A", fontWeight: "700" },
 });
