@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import AppNavigator from "./Navigation/AppNavigator";
+import { AuthProvider } from "./app/context/AuthContext"; // Import Provider vừa tạo
 
 export default function App() {
-  // ✅ Quản lý trạng thái đăng nhập toàn cục
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
   return (
-    <NavigationContainer>
-      {/* ✅ Truyền cả hai props xuống AppNavigator */}
-      <AppNavigator isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
-    </NavigationContainer>
+    // Bọc AuthProvider ở ngoài cùng để toàn bộ App truy cập được dữ liệu User
+    <AuthProvider>
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+    </AuthProvider>
   );
 }

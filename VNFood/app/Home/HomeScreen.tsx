@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Image,
   ImageBackground,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import Banner from "../../components/Banner/Banner";
 import FoodCard, { FoodDetails } from "../../components/FoodCard/FoodCard";
 import { useNavigation } from "@react-navigation/native";
@@ -111,8 +111,8 @@ const HomeScreen: React.FC = () => {
         const nonDrink = categoriesData.filter(
           (c: Category) =>
             c.category_name &&
-            !c.category_name.toLowerCase().includes("drink") &&
-            !c.category_name.toLowerCase().includes("đồ uống")
+            !c.category_name.includes("Món kho") &&
+            !c.category_name.toLowerCase().includes("Món ăn đường phố ")
         );
 
         if (nonDrink.length > 0) {
@@ -158,7 +158,7 @@ const HomeScreen: React.FC = () => {
       processedFoodDetails.filter(
         (f) =>
           f.category_name.toLowerCase().includes("drink") ||
-          f.category_name.toLowerCase().includes("đồ uống")
+          f.category_name.includes("Món kho")
       ),
     [processedFoodDetails]
   );
@@ -196,17 +196,13 @@ const HomeScreen: React.FC = () => {
           marginBottom: 0,
         }}
       >
-        <LinearGradient
-          colors={["#4CAF50", "#66BB6A", "#81C784"]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerText}>🇻🇳 Ẩm Thực Việt Nam</Text>
-          <Text style={styles.headerSubtext}>
-            Khám phá hương vị truyền thống
-          </Text>
-        </LinearGradient>
+        <View style={styles.headerContainer}>
+          <Image
+            // ✅ CÁCH VIẾT ĐÚNG CHO ẢNH LOCAL:
+            source={require('../../assets/logo.jpg')}
+            style={styles.logoBanner}
+          />
+        </View>
 
         <Banner />
 
@@ -423,6 +419,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.85)",
   },
+  headerContainer: {
+    width: "100%",
+    height: 90, // Chiều cao của banner, bạn chỉnh cho vừa mắt (thường 150-220)
+    backgroundColor: "#fff", // Màu nền dự phòng
+    overflow: "hidden", // Để ảnh không bị tràn ra khỏi bo góc
+    elevation: 5, // Đổ bóng cho nổi
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  logoBanner: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  }
 });
 
 export default HomeScreen;
