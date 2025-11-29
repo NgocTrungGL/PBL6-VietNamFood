@@ -14,12 +14,14 @@ import {
   Share, // 👈 Thêm cái này
   Alert, // 👈 Thêm cái này (nếu chưa có)
   TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FoodDetails } from "../../components/FoodCard/FoodCard";
 import { API_HOME_URL } from "@env";
+import { useAuth } from "../../app/context/AuthContext";
 
 interface Review {
   review_id: number;
@@ -52,7 +54,7 @@ const FoodDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { foodData } = route.params;
   const BASE_URL = API_HOME_URL || "http://192.168.1.5:5000/api";
-
+  const { user } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isWannaTry, setIsWannaTry] = useState(false);
   const [gallery, setGallery] = useState<FoodImage[]>([]);
@@ -60,8 +62,108 @@ const FoodDetailScreen: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userComment, setUserComment] = useState("");
-
   const flatListRef = useRef<FlatList>(null);
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!user) return;
+      try {
+        const res = await fetch(`${BASE_URL}/favorites/check?user_id=${user.user_id}&food_id=${foodData.food_id}`);
+        const data = await res.json();
+        setIsWannaTry(data.is_favorite);
+      } catch (error) {
+        console.error("Check favorite error:", error);
+      }
+    };
+    checkFavoriteStatus();
+  }, [user, foodData.food_id]);
+
+  // --- 2. XỬ LÝ NÚT TIM (WANNA TRY) ---
+  const handleToggleWannaTry = async () => {
+    if (!user) {
+      Alert.alert("Thông báo", "Vui lòng đăng nhập để lưu món ăn!");
+      return;
+    }
+
+    // UI Optimistic Update: Đổi màu ngay cho mượt, nếu lỗi thì đổi lại sau
+    const previousState = isWannaTry;
+    setIsWannaTry(!isWannaTry);
+
+    try {
+      if (previousState) {
+        // Đang like -> Bấm vào -> UNLIKE (DELETE)
+        await fetch(`${BASE_URL}/favorites?user_id=${user.user_id}&food_id=${foodData.food_id}`, {
+          method: "DELETE",
+        });
+      } else {
+        // Chưa like -> Bấm vào -> LIKE (POST)
+        await fetch(`${BASE_URL}/favorites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user.user_id,
+            food_id: Number(foodData.food_id),
+          }),
+        });
+      }
+    } catch (error) {
+      console.error("Favorite toggle error:", error);
+      setIsWannaTry(previousState); // Revert nếu lỗi
+      Alert.alert("Lỗi", "Không thể cập nhật trạng thái yêu thích.");
+    }
+  };
+
+  // --- 3. XỬ LÝ GỬI ĐÁNH GIÁ (REVIEW) ---
+  const handleSubmitReview = async () => {
+    if (!user) {
+        Alert.alert("Yêu cầu", "Bạn cần đăng nhập để viết đánh giá.");
+        return;
+    }
+    if (userRating === 0) {
+        Alert.alert("Thông báo", "Vui lòng chọn số sao đánh giá.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/reviews`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                user_id: user.user_id,
+                food_id: Number(foodData.food_id),
+                rating: userRating,
+                comment: userComment
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            Alert.alert("Thành công", "Cảm ơn đánh giá của bạn!");
+            setShowReviewModal(false);
+
+            // Cập nhật list review ngay lập tức (Fake update để không cần gọi lại API)
+            const newReview: Review = {
+                review_id: Date.now(), // ID tạm
+                user_id: user.user_id,
+                rating: userRating,
+                comment: userComment,
+                created_at: new Date().toISOString(),
+                user_name: user.full_name || user.username,
+                user_avatar: user.avatar || "",
+            };
+            setReviews([newReview, ...reviews]); // Thêm lên đầu
+
+            // Reset form
+            setUserRating(0);
+            setUserComment("");
+        } else {
+            Alert.alert("Lỗi", data.error || "Không thể gửi đánh giá.");
+        }
+    } catch (error) {
+        console.error("Submit review error:", error);
+        Alert.alert("Lỗi", "Lỗi kết nối đến server.");
+    }
+  };
   const handleShare = async () => {
     try {
       // Tạo nội dung tin nhắn muốn chia sẻ
@@ -69,7 +171,8 @@ const FoodDetailScreen: React.FC = () => {
                       `🇻🇳 Tên món: ${foodData.name}\n` +
                       `📍 Vùng miền: ${foodData.region_name}\n\n` +
                       `"${(foodData as any).description || "Hương vị tuyệt vời!"}"\n\n` +
-                      `👉 Xem chi tiết tại VN Food App`;
+                      `👉 Xem chi tiết tại VN Food App`
+                      ;
 
       const result = await Share.share({
         message: message,
@@ -171,7 +274,7 @@ const FoodDetailScreen: React.FC = () => {
     navigation.navigate("RecipeDetailScreen", { foodData: foodData });
   };
 
-  const handleToggleWannaTry = () => setIsWannaTry(!isWannaTry);
+  // const handleToggleWannaTry = () => setIsWannaTry(!isWannaTry);
   // 👇 HÀM MỚI: Xử lý đi ăn ngay
   const handleGoEat = () => {
     // Điều hướng sang MapScreen và truyền tên món ăn làm từ khóa tìm kiếm
@@ -358,55 +461,71 @@ const FoodDetailScreen: React.FC = () => {
       </View>
 
       {/* Review Modal */}
-      <Modal visible={showReviewModal} animationType="slide" transparent onRequestClose={() => setShowReviewModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Đánh giá món ăn</Text>
-              <TouchableOpacity onPress={() => setShowReviewModal(false)}>
-                <Ionicons name="close" size={24} color="#888" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalLabel}>Bạn cảm thấy thế nào?</Text>
-            <View style={styles.starsContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setUserRating(star)} activeOpacity={0.7}>
-                  <Ionicons
-                    name={star <= userRating ? "star" : "star-outline"}
-                    size={40}
-                    color={star <= userRating ? "#FFC107" : "#ddd"}
-                    style={{ marginHorizontal: 5 }}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.modalLabel}>Chia sẻ cảm nhận của bạn</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Món này ngon không? Hương vị thế nào?"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                value={userComment}
-                onChangeText={setUserComment}
-              />
-            </View>
-
+      <Modal
+        visible={showReviewModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowReviewModal(false)}
+      >
+        {/* 👇 BỌC BẰNG KEYBOARD AVOIDING VIEW */}
+        <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalOverlay}
+        >
+            {/* Lớp nền tối để bấm ra ngoài thì đóng */}
             <TouchableOpacity
-              style={[styles.submitBtn, userRating === 0 && { backgroundColor: "#ccc" }]}
-              disabled={userRating === 0}
-              onPress={() => {
-                console.log("Submit Rating:", userRating, userComment);
-                setShowReviewModal(false);
-              }}
-            >
-              <Text style={styles.submitBtnText}>Gửi đánh giá</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+                style={styles.modalBackdrop}
+                activeOpacity={1}
+                onPress={() => setShowReviewModal(false)}
+            />
+
+            <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Đánh giá món ăn</Text>
+                    <TouchableOpacity onPress={() => setShowReviewModal(false)}>
+                        <Ionicons name="close" size={24} color="#888" />
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={styles.modalLabel}>Bạn cảm thấy thế nào?</Text>
+                <View style={styles.starsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <TouchableOpacity key={star} onPress={() => setUserRating(star)} activeOpacity={0.7}>
+                            <Ionicons
+                                name={star <= userRating ? "star" : "star-outline"}
+                                size={40}
+                                color={star <= userRating ? "#FFC107" : "#ddd"}
+                                style={{ marginHorizontal: 5 }}
+                            />
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                <Text style={styles.modalLabel}>Chia sẻ cảm nhận của bạn</Text>
+                <View style={styles.inputContainer}>
+                    <TextInput
+                        style={styles.textInput}
+                        placeholder="Món này ngon không?..."
+                        placeholderTextColor="#999"
+                        multiline
+                        numberOfLines={4}
+                        value={userComment}
+                        onChangeText={setUserComment}
+                        // 👇 Thêm dòng này để nút Done tắt bàn phím
+                        returnKeyType="done"
+                        blurOnSubmit={true}
+                    />
+                </View>
+
+                <TouchableOpacity
+                    style={[styles.submitBtn, userRating === 0 && { backgroundColor: "#ccc" }]}
+                    disabled={userRating === 0}
+                    onPress={handleSubmitReview}
+                >
+                    <Text style={styles.submitBtnText}>Gửi đánh giá</Text>
+                </TouchableOpacity>
+            </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -454,8 +573,6 @@ const styles = StyleSheet.create({
   userRatingSection: { marginBottom: 20 },
   writeReviewBtnCompact: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F8E9", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
   writeReviewTextCompact: { color: "#66BB6A", fontWeight: "600", fontSize: 13, marginLeft: 4 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  modalContent: { backgroundColor: "#fff", width: "100%", borderRadius: 20, padding: 20, elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
   modalLabel: { fontSize: 14, color: "#666", marginBottom: 10, marginTop: 5 },
@@ -512,6 +629,32 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 13,
     marginLeft: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center", // Căn giữa màn hình
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)", // Nền tối
+    padding: 20, // Khoảng cách lề
+  },
+
+  // 👇 THÊM STYLE CHO LỚP NỀN (Để bấm ra ngoài đóng modal)
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject, // Phủ kín màn hình
+    zIndex: -1, // Nằm dưới modalContent
+  },
+
+  modalContent: {
+    backgroundColor: "#fff",
+    width: "100%",
+    borderRadius: 20,
+    padding: 20,
+    // Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 
