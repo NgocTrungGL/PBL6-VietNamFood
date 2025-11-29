@@ -197,7 +197,7 @@ export default function ProfileScreen() {
         {/* 👇 CẬP NHẬT PHẦN YÊU THÍCH (REAL DATA) */}
         <View style={styles.section}>
           <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Món ngon đã lưu</Text>
+            <Text style={styles.sectionTitle}>Món yêu thích</Text>
             <TouchableOpacity onPress={() => setShowFavModal(true)}>
                 <Text style={styles.seeAll}>Xem tất cả</Text>
             </TouchableOpacity>
