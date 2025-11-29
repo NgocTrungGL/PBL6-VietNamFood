@@ -1,700 +1,459 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   Image,
-  FlatList,
   Dimensions,
+  ActivityIndicator,
+  Keyboard,
+  TouchableWithoutFeedback,
+  ScrollView,
+  Platform,
+  UIManager,
+  ImageBackground,
+  Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { useFood } from "../context/FoodContext";
+import { FoodDetails } from "../../components/FoodCard/FoodCard";
+import { LinearGradient } from "expo-linear-gradient";
 
-const { width } = Dimensions.get("window");
-
-interface Food {
-  id: string;
-  name: string;
-  image: any;
-  description: string;
-  price: string;
-  region: string;
-  rating: number;
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-interface Restaurant {
-  id: string;
-  name: string;
-  image: any;
-  specialty: string;
-  rating: number;
-  distance: string;
-  deliveryTime: string;
-}
+const { width } = Dimensions.get('window');
 
-interface RegionalFoods {
-  [key: string]: Food[];
-}
+const PAGE_SIZE = 20;
 
-// Mock data cho các món ăn theo vùng miền
-const regionalFoods: RegionalFoods = {
-  north: [
-    {
-      id: "n1",
-      name: "Phở Hà Nội",
-      image: require("../../assets/images/bunbo.jpg"),
-      description: "Phở bò truyền thống Hà Nội với nước dùng trong veo",
-      price: "55.000đ",
-      region: "Miền Bắc",
-      rating: 4.8,
-    },
-    {
-      id: "n2",
-      name: "Bún Chả",
-      image: require("../../assets/images/buncha.jpg"),
-      description: "Đặc sản Hà Nội với thịt nướng thơm phức",
-      price: "45.000đ",
-      region: "Miền Bắc",
-      rating: 4.7,
-    },
-    {
-      id: "n3",
-      name: "Chả Cá Lã Vọng",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Món cá nướng đặc trưng phố cổ Hà Nội",
-      price: "85.000đ",
-      region: "Miền Bắc",
-      rating: 4.6,
-    },
-  ],
-  central: [
-    {
-      id: "c1",
-      name: "Mì Quảng",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Đặc sản Quảng Nam với nước dùng đậm đà",
-      price: "50.000đ",
-      region: "Miền Trung",
-      rating: 4.7,
-    },
-    {
-      id: "c2",
-      name: "Bún Bò Huế",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Món bún cay nổi tiếng xứ Huế",
-      price: "48.000đ",
-      region: "Miền Trung",
-      rating: 4.8,
-    },
-    {
-      id: "c3",
-      name: "Cao Lầu",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Đặc sản Hội An độc đáo",
-      price: "42.000đ",
-      region: "Miền Trung",
-      rating: 4.5,
-    },
-  ],
-  south: [
-    {
-      id: "s1",
-      name: "Bánh Xèo",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Bánh xèo miền Tây giòn rụm, nhân tôm thịt",
-      price: "38.000đ",
-      region: "Miền Nam",
-      rating: 4.6,
-    },
-    {
-      id: "s2",
-      name: "Hủ Tiếu",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Hủ tiếu Nam Vang đậm đà hương vị",
-      price: "45.000đ",
-      region: "Miền Nam",
-      rating: 4.4,
-    },
-    {
-      id: "s3",
-      name: "Cơm Tấm",
-      image: require("../../assets/banners/banhmi.webp"),
-      description: "Cơm tấm sườn nướng Sài Gòn",
-      price: "42.000đ",
-      region: "Miền Nam",
-      rating: 4.7,
-    },
-  ],
-};
+const ExploreScreen = () => {
+  const navigation = useNavigation<any>();
+  const { foods, categories, regions, loading } = useFood();
 
-// Các nhà hàng nổi bật
-const featuredRestaurants = [
-  {
-    id: "r1",
-    name: "Nhà Hàng Ngon",
-    image: require("../../assets/banners/banhmi.webp"),
-    specialty: "Món Huế",
-    rating: 4.8,
-    distance: "1.2km",
-    deliveryTime: "25-30 phút",
-  },
-  {
-    id: "r2",
-    name: "Quán Cô Ba",
-    image: require("../../assets/banners/banhmi.webp"),
-    specialty: "Phở Hà Nội",
-    rating: 4.6,
-    distance: "800m",
-    deliveryTime: "15-20 phút",
-  },
-  {
-    id: "r3",
-    name: "Bếp Miền Tây",
-    image: require("../../assets/banners/banhmi.webp"),
-    specialty: "Món miền Nam",
-    rating: 4.7,
-    distance: "2.1km",
-    deliveryTime: "30-35 phút",
-  },
-];
-
-// Tags tìm kiếm phổ biến
-const popularTags = [
-  "Phở",
-  "Bánh mì",
-  "Cơm tấm",
-  "Bún chả",
-  "Bánh xèo",
-  "Gỏi cuốn",
-  "Chả giò",
-  "Lẩu",
-  "Nướng",
-  "Chay",
-];
-
-export default function ExploreScreen() {
+  // --- STATE ---
   const [searchText, setSearchText] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("north");
-  const [activeTab, setActiveTab] = useState("regions");
 
-  const regions = [
-    { id: "north", name: "Miền Bắc", icon: "🏔️" },
-    { id: "central", name: "Miền Trung", icon: "🏛️" },
-    { id: "south", name: "Miền Nam", icon: "🌴" },
-  ];
+  // Quản lý Modal
+  const [showRegionModal, setShowRegionModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-  const tabs = [
-    { id: "regions", name: "Vùng miền", icon: "🗺️" },
-    { id: "restaurants", name: "Nhà hàng", icon: "🏪" },
-    { id: "trending", name: "Thịnh hành", icon: "🔥" },
-  ];
+  // Quản lý Filter đang chọn
+  const [selectedFilter, setSelectedFilter] = useState<{ type: 'region' | 'category', id: number, name: string } | null>(null);
 
-  const renderRegionFood = ({ item }: { item: Food }) => (
-    <TouchableOpacity style={styles.foodCard}>
-      <Image source={item.image} style={styles.foodCardImage} />
-      <View style={styles.foodCardContent}>
-        <Text style={styles.foodCardName}>{item.name}</Text>
-        <Text style={styles.foodCardDescription} numberOfLines={2}>
-          {item.description}
+  // Quản lý phân trang
+  const [visibleFoodCount, setVisibleFoodCount] = useState(PAGE_SIZE);
+
+  // --- RANDOM LOGIC ---
+  // Chỉ lấy 5 category ngẫu nhiên để hiện ở màn hình chính
+  const randomCategories = useMemo(() => {
+    if (!categories.length) return [];
+    return [...categories].sort(() => 0.5 - Math.random()).slice(0, 5);
+  }, [categories]);
+
+  // --- FILTER & SORT LOGIC ---
+  const filteredFoods = useMemo(() => {
+    let result = [...foods];
+
+    // 1. Search
+    if (searchText) {
+      result = result.filter(f => f.name.toLowerCase().includes(searchText.toLowerCase()));
+    }
+
+    // 2. Filter
+    if (selectedFilter) {
+      if (selectedFilter.type === 'region') {
+        result = result.filter(f => f.region_name === selectedFilter.name);
+      } else if (selectedFilter.type === 'category') {
+        result = result.filter(f => f.category_name === selectedFilter.name);
+      }
+    }
+
+    // 3. Sort Popular
+    result.sort((a, b) => (Number(b.most_popular) - Number(a.most_popular)));
+
+    return result;
+  }, [foods, searchText, selectedFilter]);
+
+  const displayFoods = useMemo(() => {
+    return filteredFoods.slice(0, visibleFoodCount);
+  }, [filteredFoods, visibleFoodCount]);
+
+  // --- HANDLERS ---
+  const handleLoadMore = () => setVisibleFoodCount(prev => prev + PAGE_SIZE);
+
+  // Chọn từ Modal hoặc List
+  const handleApplyFilter = (type: 'region' | 'category', item: any) => {
+    setSelectedFilter({
+        type,
+        id: type === 'region' ? item.region_id : item.category_id,
+        name: type === 'region' ? item.region_name : item.category_name
+    });
+
+    // Đóng tất cả modal
+    setShowRegionModal(false);
+    setShowCategoryModal(false);
+
+    // Reset paging
+    setVisibleFoodCount(PAGE_SIZE);
+  };
+
+  const getItemImage = (img: string | null) => {
+    if (!img) return { uri: "https://cdn-icons-png.flaticon.com/512/135/135161.png" };
+    if (img.startsWith("http") || img.startsWith("data:")) return { uri: img };
+    return { uri: `data:image/jpeg;base64,${img}` };
+  };
+
+  // --- RENDER COMPONENTS ---
+
+  // 1. Slim Food Card
+  const renderSlimFoodCard = ({ item }: { item: FoodDetails }) => (
+    <TouchableOpacity
+      style={styles.slimCard}
+      onPress={() => navigation.navigate("FoodDetailScreen", { foodData: item })}
+      activeOpacity={0.8}
+    >
+      <Image source={item.main_image as any} style={styles.slimImage} />
+      <View style={styles.slimContent}>
+        <View style={styles.slimHeader}>
+            <Text style={styles.slimName} numberOfLines={1}>{item.name}</Text>
+            {item.most_popular && <Ionicons name="flame" size={16} color="#FF5722" />}
+        </View>
+        <Text style={styles.slimDesc} numberOfLines={2}>
+            {item.description || "Hương vị truyền thống..."}
         </Text>
-        <View style={styles.foodCardFooter}>
-          <Text style={styles.foodCardPrice}>{item.price}</Text>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.ratingText}>⭐ {item.rating}</Text>
-          </View>
+        <View style={styles.slimFooter}>
+            <View style={styles.slimBadge}>
+                <Text style={styles.slimBadgeText}>{item.category_name}</Text>
+            </View>
+            <View style={styles.ratingBox}>
+                <Ionicons name="star" size={12} color="#FFC107" />
+                <Text style={styles.ratingText}>{item.avg_rating?.toFixed(1)}</Text>
+            </View>
         </View>
       </View>
     </TouchableOpacity>
   );
 
-  const renderRestaurant = ({ item }: { item: Restaurant }) => (
-    <TouchableOpacity style={styles.restaurantCard}>
-      <Image source={item.image} style={styles.restaurantImage} />
-      <View style={styles.restaurantInfo}>
-        <Text style={styles.restaurantName}>{item.name}</Text>
-        <Text style={styles.restaurantSpecialty}>{item.specialty}</Text>
-        <View style={styles.restaurantDetails}>
-          <Text style={styles.restaurantRating}>⭐ {item.rating}</Text>
-          <Text style={styles.restaurantDistance}>📍 {item.distance}</Text>
-          <Text style={styles.restaurantTime}>🕒 {item.deliveryTime}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  // 2. Category Circle Item (Màn hình chính)
+  const renderRandomCategoryItem = (item: any) => {
+    const isSelected = selectedFilter?.type === 'category' && selectedFilter.id === item.category_id;
+    return (
+        <TouchableOpacity
+            key={item.category_id}
+            style={styles.catItem}
+            onPress={() => handleApplyFilter('category', item)}
+        >
+            <View style={[styles.catIconBox, isSelected && styles.activeItemBorder]}>
+                <Image source={getItemImage(item.image)} style={styles.catImage} resizeMode="contain"/>
+            </View>
+            <Text style={[styles.catName, isSelected && styles.activeItemText]} numberOfLines={2}>{item.category_name}</Text>
+        </TouchableOpacity>
+    );
+  };
 
-  const renderPopularTag = (tag: string, index: number) => (
-    <TouchableOpacity key={index} style={styles.tagButton}>
-      <Text style={styles.tagText}>{tag}</Text>
-    </TouchableOpacity>
-  );
+  if (loading) {
+    return (
+      <View style={[styles.loadingContainer, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#66BB6A" />
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🔍 Khám Phá</Text>
-        <Text style={styles.headerSubtitle}>Tìm kiếm món ăn yêu thích</Text>
-      </View>
+    <ImageBackground
+        source={require('../../assets/explore-bg.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+    >
+        <View style={styles.backgroundOverlay} />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Tìm món ăn, nhà hàng..."
-              value={searchText}
-              onChangeText={setSearchText}
-              placeholderTextColor="#999"
-            />
-          </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+
+        {/* Header Logo */}
+        <View style={styles.headerContainer}>
+          <Image
+            source={require('../../assets/logo.jpg')}
+            style={styles.logoBanner}
+          />
         </View>
 
-        {/* Popular Tags */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏷️ Tìm kiếm phổ biến</Text>
-          <View style={styles.tagsContainer}>
-            {popularTags.map(renderPopularTag)}
-          </View>
-        </View>
+            {/* SEARCH BAR */}
+            <View style={styles.searchSection}>
+                <View style={styles.searchBar}>
+                    <Ionicons name="search" size={20} color="#666" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Tìm món ăn, hương vị..."
+                        value={searchText}
+                        onChangeText={setSearchText}
+                        placeholderTextColor="#999"
+                    />
+                    {searchText.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchText("")}>
+                            <Ionicons name="close-circle" size={18} color="#ccc" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
 
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[styles.tab, activeTab === tab.id && styles.activeTab]}
-              onPress={() => setActiveTab(tab.id)}
+            {/* FILTER CHIPS (Thanh công cụ) */}
+            <View style={styles.filterRowContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20}}>
+                    {/* Chip Location -> Open Modal */}
+                    <TouchableOpacity
+                        style={[styles.filterChip, selectedFilter?.type === 'region' && styles.activeFilterChip]}
+                        onPress={() => setShowRegionModal(true)}
+                    >
+                        <Text style={[styles.filterChipText, selectedFilter?.type === 'region' && styles.activeFilterChipText]}>
+                            📍 {selectedFilter?.type === 'region' ? selectedFilter.name : "Vùng miền"}
+                        </Text>
+                        <Ionicons name="chevron-down" size={12} color={selectedFilter?.type === 'region' ? "#fff" : "#666"} style={{marginLeft: 4}}/>
+                    </TouchableOpacity>
+
+                    {/* Chip Category -> Open Modal */}
+                    <TouchableOpacity
+                        style={[styles.filterChip, selectedFilter?.type === 'category' && styles.activeFilterChip]}
+                        onPress={() => setShowCategoryModal(true)}
+                    >
+                        <Text style={[styles.filterChipText, selectedFilter?.type === 'category' && styles.activeFilterChipText]}>
+                            🍽️ {selectedFilter?.type === 'category' ? selectedFilter.name : "Danh mục"}
+                        </Text>
+                        <Ionicons name="chevron-down" size={12} color={selectedFilter?.type === 'category' ? "#fff" : "#666"} style={{marginLeft: 4}}/>
+                    </TouchableOpacity>
+
+                    {/* Clear Filter */}
+                    {selectedFilter && (
+                        <TouchableOpacity style={styles.clearFilterChip} onPress={() => setSelectedFilter(null)}>
+                            <Text style={styles.clearFilterText}>Xóa lọc</Text>
+                            <Ionicons name="close" size={14} color="#FF5252" />
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+
+                {/* SECTION 1: DANH MỤC (Random 5) */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Gợi Ý Danh Mục</Text>
+                        <TouchableOpacity onPress={() => setShowCategoryModal(true)}>
+                            <Text style={styles.seeAllText}>Xem tất cả</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.gridContainer}>
+                        {randomCategories.map(renderRandomCategoryItem)}
+                    </View>
+                </View>
+
+                {/* (ĐÃ XÓA SECTION VÙNG MIỀN Ở ĐÂY THEO YÊU CẦU) */}
+
+                {/* SECTION 2: DANH SÁCH MÓN ĂN */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>
+                        {selectedFilter ? `Kết quả: ${selectedFilter.name}` : "Khám Phá Món Ngon"}
+                    </Text>
+                    <Text style={styles.subText}>
+                        Hiển thị {displayFoods.length} / {filteredFoods.length} kết quả
+                    </Text>
+
+                    <View style={styles.foodListContainer}>
+                        {displayFoods.map((item) => (
+                            <View key={item.food_id}>
+                                {renderSlimFoodCard({ item })}
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Load More Button */}
+                    {displayFoods.length < filteredFoods.length && (
+                        <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
+                            <Text style={styles.loadMoreText}>Xem thêm món khác</Text>
+                            <Ionicons name="chevron-down" size={16} color="#66BB6A" />
+                        </TouchableOpacity>
+                    )}
+
+                    {filteredFoods.length === 0 && (
+                        <View style={styles.emptyState}>
+                            <Ionicons name="fast-food-outline" size={50} color="#ccc" />
+                            <Text style={{color: '#999', marginTop: 10}}>Không tìm thấy món ăn nào.</Text>
+                        </View>
+                    )}
+                </View>
+
+            </ScrollView>
+
+            {/* --- MODAL 1: CHỌN VÙNG MIỀN --- */}
+            <Modal
+                visible={showRegionModal}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setShowRegionModal(false)}
             >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab.id && styles.activeTabText,
-                ]}
-              >
-                {tab.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowRegionModal(false)}/>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Chọn Vùng Miền</Text>
+                        <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                            {regions.map((region, index) => (
+                                <TouchableOpacity
+                                    key={region.region_id}
+                                    style={[styles.modalItem, index === regions.length - 1 && { borderBottomWidth: 0 }]}
+                                    onPress={() => handleApplyFilter('region', region)}
+                                >
+                                    <Text style={[
+                                        styles.modalItemText,
+                                        selectedFilter?.type === 'region' && selectedFilter.id === region.region_id && styles.modalActiveText
+                                    ]}>
+                                        {region.region_name}
+                                    </Text>
+                                    {selectedFilter?.type === 'region' && selectedFilter.id === region.region_id && (
+                                        <Ionicons name="checkmark" size={18} color="#66BB6A" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowRegionModal(false)}>
+                            <Text style={styles.closeButtonText}>Đóng</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
-        {/* Content based on active tab */}
-        {activeTab === "regions" && (
-          <>
-            {/* Region Selector */}
-            <View style={styles.regionSelector}>
-              {regions.map((region) => (
-                <TouchableOpacity
-                  key={region.id}
-                  style={[
-                    styles.regionButton,
-                    selectedRegion === region.id && styles.activeRegionButton,
-                  ]}
-                  onPress={() => setSelectedRegion(region.id)}
-                >
-                  <Text style={styles.regionIcon}>{region.icon}</Text>
-                  <Text
-                    style={[
-                      styles.regionText,
-                      selectedRegion === region.id && styles.activeRegionText,
-                    ]}
-                  >
-                    {region.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* --- MODAL 2: CHỌN DANH MỤC (Tương tự vùng miền nhưng có icon) --- */}
+            <Modal
+                visible={showCategoryModal}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setShowCategoryModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowCategoryModal(false)}/>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Tất Cả Danh Mục</Text>
+                        <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                            {categories.map((cat, index) => (
+                                <TouchableOpacity
+                                    key={cat.category_id}
+                                    style={[styles.modalItem, index === categories.length - 1 && { borderBottomWidth: 0 }]}
+                                    onPress={() => handleApplyFilter('category', cat)}
+                                >
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <Image source={getItemImage(cat.image)} style={{width: 30, height: 30, marginRight: 15}} resizeMode="contain"/>
+                                        <Text style={[
+                                            styles.modalItemText,
+                                            selectedFilter?.type === 'category' && selectedFilter.id === cat.category_id && styles.modalActiveText
+                                        ]}>
+                                            {cat.category_name}
+                                        </Text>
+                                    </View>
+                                    {selectedFilter?.type === 'category' && selectedFilter.id === cat.category_id && (
+                                        <Ionicons name="checkmark" size={18} color="#66BB6A" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowCategoryModal(false)}>
+                            <Text style={styles.closeButtonText}>Đóng</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
-            {/* Regional Foods */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Món ăn đặc trưng{" "}
-                {regions.find((r) => r.id === selectedRegion)?.name}
-              </Text>
-              <FlatList
-                data={regionalFoods[selectedRegion]}
-                renderItem={renderRegionFood}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-              />
-            </View>
-          </>
-        )}
-
-        {activeTab === "restaurants" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏪 Nhà hàng nổi bật</Text>
-            <FlatList
-              data={featuredRestaurants}
-              renderItem={renderRestaurant}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-            />
-          </View>
-        )}
-
-        {activeTab === "trending" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔥 Xu hướng hiện tại</Text>
-            <View style={styles.trendingContainer}>
-              <View style={styles.trendingItem}>
-                <Text style={styles.trendingEmoji}>🍜</Text>
-                <Text style={styles.trendingText}>Phở chua Lạng Sơn</Text>
-                <Text style={styles.trendingSubtext}>+125% tìm kiếm</Text>
-              </View>
-              <View style={styles.trendingItem}>
-                <Text style={styles.trendingEmoji}>🦐</Text>
-                <Text style={styles.trendingText}>Bánh khọt Vũng Tàu</Text>
-                <Text style={styles.trendingSubtext}>+89% tìm kiếm</Text>
-              </View>
-              <View style={styles.trendingItem}>
-                <Text style={styles.trendingEmoji}>🍲</Text>
-                <Text style={styles.trendingText}>Lẩu cá kèo</Text>
-                <Text style={styles.trendingSubtext}>+67% tìm kiếm</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Discover Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>✨ Khám phá thêm</Text>
-          <View style={styles.discoverGrid}>
-            <TouchableOpacity style={styles.discoverCard}>
-              <Text style={styles.discoverEmoji}>📖</Text>
-              <Text style={styles.discoverTitle}>Công thức</Text>
-              <Text style={styles.discoverSubtext}>Học nấu ăn</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.discoverCard}>
-              <Text style={styles.discoverEmoji}>🎥</Text>
-              <Text style={styles.discoverTitle}>Video</Text>
-              <Text style={styles.discoverSubtext}>Hướng dẫn chi tiết</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.discoverCard}>
-              <Text style={styles.discoverEmoji}>📍</Text>
-              <Text style={styles.discoverTitle}>Quán gần</Text>
-              <Text style={styles.discoverSubtext}>Tìm quanh đây</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.discoverCard}>
-              <Text style={styles.discoverEmoji}>⭐</Text>
-              <Text style={styles.discoverTitle}>Review</Text>
-              <Text style={styles.discoverSubtext}>Đánh giá món ăn</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-    </View>
+        </SafeAreaView>
+        </TouchableWithoutFeedback>
+    </ImageBackground>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  header: {
-    backgroundColor: "#FF5722",
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#fff",
-    opacity: 0.9,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: "#FF5722",
-  },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-  },
-  searchIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#333",
-  },
-  section: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 15,
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tagButton: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    elevation: 1,
-  },
-  tagText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginTop: 20,
-    gap: 10,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  activeTab: {
-    backgroundColor: "#FF5722",
-    borderColor: "#FF5722",
-  },
-  tabIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  tabText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-  activeTabText: {
-    color: "#fff",
-  },
-  regionSelector: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginTop: 20,
-    gap: 10,
-  },
-  regionButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  activeRegionButton: {
-    backgroundColor: "#FFF3E0",
-    borderColor: "#FF5722",
-  },
-  regionIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  regionText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  activeRegionText: {
-    color: "#FF5722",
-    fontWeight: "600",
-  },
-  horizontalList: {
-    paddingLeft: 0,
-  },
-  foodCard: {
-    width: width * 0.7,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginRight: 15,
-    overflow: "hidden",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-  },
-  foodCardImage: {
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  backgroundOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255, 255, 255, 0.85)' },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, backgroundColor: "#fff" },
+
+
+  searchSection: { paddingHorizontal: 20,paddingTop:20 , paddingBottom: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 25, paddingHorizontal: 15, height: 48, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: '#333' },
+
+  // --- FILTER CHIPS ---
+  filterRowContainer: { marginBottom: 10, height: 40 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 10, borderWidth: 1, borderColor: '#ddd', elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: {width: 0, height: 1} },
+  activeFilterChip: { backgroundColor: '#66BB6A', borderColor: '#66BB6A' },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  activeFilterChipText: { color: '#fff' },
+  clearFilterChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFEBEE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: '#FFCDD2' },
+  clearFilterText: { fontSize: 13, color: '#FF5252', marginRight: 4, fontWeight: '500' },
+
+  // --- SECTIONS ---
+  section: { marginTop: 20, paddingHorizontal: 20 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#2E3A59', letterSpacing: 0.5 },
+  seeAllText: { fontSize: 13, color: '#66BB6A', fontWeight: '600' },
+  subText: { fontSize: 13, color: '#666', marginBottom: 12, fontStyle: 'italic' },
+
+  // --- CATEGORIES GRID (Random 5) ---
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap' },
+  catItem: { width: (width - 40) / 5, alignItems: 'center', marginBottom: 15 },
+  catIconBox: { width: 55, height: 55, borderRadius: 28, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', marginBottom: 6, shadowColor: "#66BB6A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 },
+  activeItemBorder: { borderWidth: 2, borderColor: '#66BB6A', backgroundColor: '#F1F8E9' },
+  activeItemText: { color: '#2E7D32', fontWeight: 'bold' },
+  catImage: { width: 32, height: 32 },
+  catName: { fontSize: 11, color: '#555', textAlign: 'center', fontWeight: '500' },
+
+  // --- SLIM FOOD CARD ---
+  foodListContainer: { gap: 15 },
+  slimCard: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,1)' },
+  slimImage: { width: 90, height: 90, borderRadius: 14, backgroundColor: '#eee' },
+  slimContent: { flex: 1, marginLeft: 15, justifyContent: 'space-around', paddingVertical: 2 },
+  slimHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  slimName: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1, marginRight: 5 },
+  slimDesc: { fontSize: 12, color: '#777', lineHeight: 16 },
+  slimFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  slimBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  slimBadgeText: { fontSize: 10, color: '#2E7D32', fontWeight: '700', textTransform: 'uppercase' },
+  ratingBox: { flexDirection: 'row', alignItems: 'center' },
+  ratingText: { fontSize: 13, color: '#FFC107', fontWeight: 'bold', marginLeft: 4 },
+
+  loadMoreBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 20 },
+  loadMoreText: { color: '#66BB6A', fontWeight: '600', marginRight: 5, fontSize: 14 },
+  emptyState: { alignItems: 'center', marginTop: 20 },
+
+  // --- MODAL STYLES (Organic) ---
+  modalOverlay: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  modalContent: { width: '85%', maxHeight: '70%', backgroundColor: "#fff", borderRadius: 25, padding: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 10 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", textAlign: "center", marginBottom: 20, color: "#222" },
+  modalList: { marginBottom: 20 },
+  modalItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#F0F0F0", flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalItemText: { fontSize: 16, color: "#555" },
+  modalActiveText: { color: '#66BB6A', fontWeight: 'bold' },
+  closeButton: { backgroundColor: "#66BB6A", paddingVertical: 15, borderRadius: 15, alignItems: "center", width: '100%' },
+  closeButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+    headerContainer: {
     width: "100%",
-    height: 120,
-    resizeMode: "cover",
-  },
-  foodCardContent: {
-    padding: 12,
-  },
-  foodCardName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  foodCardDescription: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 8,
-    lineHeight: 16,
-  },
-  foodCardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  foodCardPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FF5722",
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  restaurantCard: {
-    flexDirection: "row",
+    height: 90,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 12,
     overflow: "hidden",
-    elevation: 2,
+    elevation: 5,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  restaurantImage: {
-    width: 80,
-    height: 80,
+  logoBanner: {
+    width: "100%",
+    height: "100%",
     resizeMode: "cover",
-  },
-  restaurantInfo: {
-    flex: 1,
-    padding: 12,
-  },
-  restaurantName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  restaurantSpecialty: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 8,
-  },
-  restaurantDetails: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  restaurantRating: {
-    fontSize: 11,
-    color: "#666",
-  },
-  restaurantDistance: {
-    fontSize: 11,
-    color: "#666",
-  },
-  restaurantTime: {
-    fontSize: 11,
-    color: "#666",
-  },
-  trendingContainer: {
-    gap: 12,
-  },
-  trendingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-  },
-  trendingEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  trendingText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-  },
-  trendingSubtext: {
-    fontSize: 12,
-    color: "#FF5722",
-    fontWeight: "500",
-  },
-  discoverGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  discoverCard: {
-    width: (width - 52) / 2,
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-  },
-  discoverEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  discoverTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  discoverSubtext: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
-  },
+  }
 });
+
+export default ExploreScreen;

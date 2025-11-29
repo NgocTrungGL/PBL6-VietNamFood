@@ -10,12 +10,15 @@ import {
   Image,
   ImageBackground,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Banner from "../../components/Banner/Banner";
 import FoodCard, { FoodDetails } from "../../components/FoodCard/FoodCard";
 import { useNavigation } from "@react-navigation/native";
-import { API_HOME_URL } from "@env";
+import { useFood } from "../context/FoodContext";
+
+// --- INTERFACES ---
 
 interface Category {
   category_id: number;
@@ -24,27 +27,17 @@ interface Category {
   image: string | null;
 }
 
+// 👇 SỬA LỖI Ở ĐÂY: Thêm dấu ? vào các trường có thể thiếu
 interface Region {
   region_id: number;
   region_name: string;
   description: string | null;
   region_image: string | null;
-  parent_image: string | null;
-  parent_region_id: number | null;
+  parent_image?: string | null;      // Thêm dấu ?
+  parent_region_id?: number | null;  // Thêm dấu ?
 }
 
-interface RawFood {
-  food_id: number;
-  name: string;
-  description: string;
-  main_image: string; // base64 từ API
-  avg_rating: number;
-  most_popular: number; // 0 hoặc 1
-  category_id: number;
-  origin_region_id: number;
-}
-
-// Component hiển thị 1 section món ăn
+// --- SUB-COMPONENT: FoodSection ---
 const FoodSection: React.FC<{ title: string; data: FoodDetails[] }> = ({
   title,
   data,
@@ -70,156 +63,114 @@ const FoodSection: React.FC<{ title: string; data: FoodDetails[] }> = ({
           contentContainerStyle={styles.foodList}
         />
       ) : (
-        <Text style={styles.noDataText}>Không tìm thấy món ăn phù hợp.</Text>
+        <Text style={styles.noDataText}>Đang cập nhật...</Text>
       )}
     </View>
   );
 };
 
+// --- MAIN COMPONENT: HomeScreen ---
 const HomeScreen: React.FC = () => {
-  const [foods, setFoods] = useState<RawFood[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 1. Lấy dữ liệu từ Context (Đã clean code phần gọi API cũ)
+  const { foods, categories, regions, loading } = useFood();
+
+  // State UI
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [randomCategory, setRandomCategory] = useState<Category | null>(null);
 
-  // 👉 Cập nhật địa chỉ IP của bạn tại đây:
-  const BASE_URL = `${API_HOME_URL}`;
-
+  // 2. Logic Random Category
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [foodsRes, catRes, regRes] = await Promise.all([
-          fetch(`${BASE_URL}/foods`),
-          fetch(`${BASE_URL}/categories`),
-          fetch(`${BASE_URL}/regions`),
-        ]);
+    if (categories.length > 0 && !randomCategory) {
+      const nonDrink = categories.filter(
+        (c) =>
+          c.category_name &&
+          !c.category_name.includes("Chè") &&
+          !c.category_name.toLowerCase().includes("drink")
+      );
 
-        const [foodsData, categoriesData, regionsData] = await Promise.all([
-          foodsRes.json(),
-          catRes.json(),
-          regRes.json(),
-        ]);
-
-        setFoods(foodsData);
-        setCategories(categoriesData);
-        setRegions(regionsData);
-
-        // Random category (trừ Drink hoặc trống)
-        const nonDrink = categoriesData.filter(
-          (c: Category) =>
-            c.category_name &&
-            !c.category_name.includes("Món kho") &&
-            !c.category_name.toLowerCase().includes("Món ăn đường phố ")
-        );
-
-        if (nonDrink.length > 0) {
-          const random = Math.floor(Math.random() * nonDrink.length);
-          setRandomCategory(nonDrink[random]);
-        }
-      } catch (err) {
-        console.error("Lỗi khi tải dữ liệu:", err);
-      } finally {
-        setLoading(false);
+      if (nonDrink.length > 0) {
+        const random = Math.floor(Math.random() * nonDrink.length);
+        setRandomCategory(nonDrink[random]);
       }
-    };
+    }
+  }, [categories]);
 
-    fetchData();
-  }, []);
-
-  // Xử lý dữ liệu thành FoodDetails để hiển thị
-  const processedFoodDetails: FoodDetails[] = useMemo(() => {
-    const catMap = new Map(
-      categories.map((c) => [c.category_id, c.category_name])
-    );
-    const regMap = new Map(regions.map((r) => [r.region_id, r.region_name]));
-
-    return foods.map((food) => ({
-      ...food,
-      food_id: food.food_id.toString(),
-      avg_rating: food.avg_rating,
-      most_popular: food.most_popular === 1,
-      category_name: catMap.get(food.category_id) || "Unknown",
-      region_name: regMap.get(food.origin_region_id) || "Unknown",
-      // Chuyển ảnh base64 sang URI
-      main_image: { uri: `data:image/jpeg;base64,${food.main_image}` },
-    }));
-  }, [foods, categories, regions]);
-
+  // 3. Logic Filter
   const mostPopularFoods = useMemo(
-    () => processedFoodDetails.filter((f) => f.most_popular),
-    [processedFoodDetails]
+    () => foods.filter((f) => f.most_popular),
+    [foods]
   );
 
   const mostPopularDrinks = useMemo(
     () =>
-      processedFoodDetails.filter(
+      foods.filter(
         (f) =>
           f.category_name.toLowerCase().includes("drink") ||
-          f.category_name.includes("Món kho")
+          f.category_name.toLowerCase().includes("thức uống") ||
+          f.category_name.includes("Chè")
       ),
-    [processedFoodDetails]
+    [foods]
   );
 
   const randomCategoryFoods = useMemo(() => {
     if (!randomCategory) return [];
-    return processedFoodDetails.filter(
+    return foods.filter(
       (f) => f.category_name === randomCategory.category_name
     );
-  }, [randomCategory, processedFoodDetails]);
+  }, [randomCategory, foods]);
 
   const handleSelectRegion = (region: Region) => {
     setSelectedRegion(region);
     setShowLocationModal(false);
+    // TODO: Có thể thêm logic navigate hoặc filter khi chọn vùng miền tại đây
   };
 
+  // Loading View
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={{ textAlign: "center", marginTop: 10 }}>
-          Đang tải dữ liệu...
-        </Text>
-      </SafeAreaView>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#66BB6A" />
+        <Text style={{ marginTop: 10, color: "#666" }}>Đang tải tinh hoa ẩm thực...</Text>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingBottom: 0,
-          marginBottom: 0,
-        }}
+        contentContainerStyle={{ flexGrow: 1 }}
       >
+        {/* Header Logo */}
         <View style={styles.headerContainer}>
           <Image
-            // ✅ CÁCH VIẾT ĐÚNG CHO ẢNH LOCAL:
             source={require('../../assets/logo.jpg')}
             style={styles.logoBanner}
           />
         </View>
 
+        {/* Carousel Banner */}
         <Banner />
 
+        {/* Welcome Text */}
         <View style={styles.welcomeContainer}>
           <Text style={styles.welcomeTitle}>Where to eat local?</Text>
           <Text style={styles.welcomeSubtitle}>
-            The best traditional places in Vietnam, recommended by food
-            professionals.
+            The best traditional places in Vietnam, recommended by food professionals.
           </Text>
         </View>
 
+        {/* Main Content with Background */}
         <ImageBackground
           source={require("../../assets/bgimg.jpg")}
           style={styles.background}
           resizeMode="cover"
         >
           <View style={styles.overlay}>
+            {/* Filter Chips */}
             <View style={styles.filterContainer}>
               <TouchableOpacity
                 style={styles.filterButton}
@@ -229,16 +180,15 @@ const HomeScreen: React.FC = () => {
                   📍 {selectedRegion ? selectedRegion.region_name : "Location"}
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.filterButton}>
                 <Text style={styles.filterText}>⭐ Popularity</Text>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.filterButton}>
                 <Text style={styles.filterText}>🍽️ Category</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Food Lists */}
             <FoodSection
               title="Most popular Vietnamese food"
               data={mostPopularFoods}
@@ -253,30 +203,33 @@ const HomeScreen: React.FC = () => {
                 data={randomCategoryFoods}
               />
             )}
+
+            <View style={{ height: 80 }} />
           </View>
         </ImageBackground>
       </ScrollView>
 
-      {/* Modal chọn vùng miền */}
+      {/* Modal Location */}
       <Modal
         visible={showLocationModal}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setShowLocationModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select a Region</Text>
-            {regions.map((region) => (
-              <TouchableOpacity
-                key={region.region_id}
-                style={styles.regionItem}
-                onPress={() => handleSelectRegion(region)}
-              >
-                <Text style={styles.regionText}>{region.region_name}</Text>
-              </TouchableOpacity>
-            ))}
-
+            <ScrollView style={{ maxHeight: 300 }}>
+                {regions.map((region) => (
+                <TouchableOpacity
+                    key={region.region_id}
+                    style={styles.regionItem}
+                    onPress={() => handleSelectRegion(region)}
+                >
+                    <Text style={styles.regionText}>{region.region_name}</Text>
+                </TouchableOpacity>
+                ))}
+            </ScrollView>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowLocationModal(false)}
@@ -284,58 +237,68 @@ const HomeScreen: React.FC = () => {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
 };
 
-// ----------------- STYLES -----------------
+// --- STYLES (Giữ nguyên như cũ) ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#fff",
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    alignItems: "center",
+  headerContainer: {
+    width: "100%",
+    height: 90,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  headerSubtext: {
-    fontSize: 14,
-    color: "#fff",
-    opacity: 0.9,
+  logoBanner: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   welcomeContainer: {
-    paddingVertical: 5,
+    paddingVertical: 15,
     paddingHorizontal: 15,
     alignItems: "center",
     backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee"
   },
   welcomeTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#222",
+    color: "#333",
   },
   welcomeSubtitle: {
-    fontSize: 15,
-    color: "#555",
+    fontSize: 14,
+    color: "#666",
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 5,
+    lineHeight: 20,
+  },
+  background: {
+    flex: 1,
+    width: "100%",
+    minHeight: 500,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.9)",
   },
   filterContainer: {
     flexDirection: "row",
-    paddingVertical: 10,
+    paddingVertical: 15,
     paddingHorizontal: 15,
-    backgroundColor: "#f8f9fa",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   filterButton: {
     paddingVertical: 8,
@@ -345,30 +308,37 @@ const styles = StyleSheet.create({
     marginRight: 10,
     borderWidth: 1,
     borderColor: "#ddd",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: {width: 0, height: 1}
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: "600",
     color: "#333",
   },
   sectionContainer: {
-    marginTop: 20,
+    marginTop: 25,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 19,
+    fontWeight: "800",
     marginHorizontal: 20,
     marginBottom: 15,
-    color: "#333",
+    color: "#2E3A59",
+    letterSpacing: 0.5,
   },
   foodList: {
     paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingBottom: 15,
   },
   noDataText: {
     margin: 20,
     color: "#888",
     textAlign: "center",
+    fontStyle: 'italic'
   },
   modalContainer: {
     flex: 1,
@@ -380,13 +350,14 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: "70%",
+    paddingBottom: 40,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 20,
+    color: "#333"
   },
   regionItem: {
     paddingVertical: 15,
@@ -396,13 +367,13 @@ const styles = StyleSheet.create({
   regionText: {
     fontSize: 16,
     textAlign: "center",
-    color: "#333",
+    color: "#555",
   },
   closeButton: {
     marginTop: 20,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#66BB6A",
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
   },
   closeButtonText: {
@@ -410,31 +381,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  background: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.85)",
-  },
-  headerContainer: {
-    width: "100%",
-    height: 90, // Chiều cao của banner, bạn chỉnh cho vừa mắt (thường 150-220)
-    backgroundColor: "#fff", // Màu nền dự phòng
-    overflow: "hidden", // Để ảnh không bị tràn ra khỏi bo góc
-    elevation: 5, // Đổ bóng cho nổi
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  logoBanner: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  }
 });
 
 export default HomeScreen;
