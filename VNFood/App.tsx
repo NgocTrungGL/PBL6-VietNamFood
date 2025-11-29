@@ -1,15 +1,21 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import { StatusBar } from "react-native";
 import AppNavigator from "./Navigation/AppNavigator";
-import { AuthProvider } from "./app/context/AuthContext"; // Import Provider vừa tạo
+import { AuthProvider } from "./app/context/AuthContext";
+// 👇 IMPORT MỚI
+import { FoodProvider } from "./app/context/FoodContext";
 
 export default function App() {
   return (
-    // Bọc AuthProvider ở ngoài cùng để toàn bộ App truy cập được dữ liệu User
     <AuthProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
+      {/* 👇 BỌC FOOD PROVIDER Ở ĐÂY */}
+      <FoodProvider>
+        <NavigationContainer>
+          <StatusBar barStyle="dark-content" />
+          <AppNavigator />
+        </NavigationContainer>
+      </FoodProvider>
     </AuthProvider>
   );
 }

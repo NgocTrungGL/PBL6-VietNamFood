@@ -1,4 +1,3 @@
-// components/FoodCard.tsx
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 
@@ -9,6 +8,7 @@ export interface FoodDetails {
   avg_rating: number;
   category_name: string;
   region_name: string;
+  description?: string;
   most_popular: boolean;
   category_id: number;
 }
