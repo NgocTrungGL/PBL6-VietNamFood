@@ -6,102 +6,184 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
+interface Message {
+  id: string;
+  role: "user" | "bot";
+  text: string;
+}
+
 export default function ChatboxScreen() {
-  const [messages, setMessages] = useState<{ role: string; text: string }[]>(
-    []
-  );
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
-    // thêm tin nhắn user vào UI
-    const newMessage = { role: "user", text: input };
-    setMessages((prev) => [...prev, newMessage]);
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      text: input.trim(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
 
     try {
-      const response = await fetch("https://api.coze.com/open_api/v2/chat", {
+      const response = await fetch("http://192.168.16.71:5000/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization:
-            "pat_d22m8fNQ3qEl80tesgJRZVNWnbK8PmHrnWWf5sFa8n2qC69sFyrJ1f7lKjzGbEMC", // 🔑 thay bằng Personal Access Token thật của bạn
+          // Authorization: "YOUR_API_KEY",
         },
         body: JSON.stringify({
-          bot_id: "7500488605043933191", // 🔑 bot_id của bạn
-          user: "user_123", // bạn tự đặt ID cho user, có thể dùng uuid
-          query: input, // nội dung người dùng nhập
+          question: userMessage.text,
+          k:5
         }),
       });
 
       const data = await response.json();
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "bot",
+        text: data.answer || "Xin lỗi, tôi không hiểu câu hỏi của bạn.",
+      };
 
-      // ✅ tuỳ vào format JSON của Coze, lấy text từ bot
-      const botReply =
-        data?.messages?.[0]?.content?.[0]?.text ?? "Bot không trả lời";
-
-      setMessages((prev) => [...prev, { role: "bot", text: botReply }]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       console.error("Error:", error);
-      setMessages((prev) => [...prev, { role: "bot", text: "❌ Lỗi gọi API" }]);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "bot",
+        text: "Có lỗi xảy ra. Vui lòng thử lại sau.",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
     }
-
-    setInput("");
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={90}
+    >
+      <View style={styles.header}>
+        <Text style={styles.headerText}>Chat Bot</Text>
+      </View>
+
       <FlatList
         data={messages}
-        keyExtractor={(_, index) => index.toString()}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View
             style={[
-              styles.message,
-              item.role === "user" ? styles.userMsg : styles.botMsg,
+              styles.messageBubble,
+              item.role === "user" ? styles.userBubble : styles.botBubble,
             ]}
           >
-            <Text style={styles.text}>{item.text}</Text>
+            <Text style={styles.messageText}>{item.text}</Text>
           </View>
         )}
+        contentContainerStyle={styles.messageList}
       />
 
-      <View style={styles.inputRow}>
+      <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
           value={input}
           onChangeText={setInput}
           placeholder="Nhập tin nhắn..."
+          placeholderTextColor="#999"
+          multiline
+          editable={!loading}
         />
-        <TouchableOpacity style={styles.button} onPress={sendMessage}>
-          <Text style={{ color: "#fff" }}>Gửi</Text>
+        <TouchableOpacity
+          style={[styles.sendButton, loading && styles.sendButtonDisabled]}
+          onPress={sendMessage}
+          disabled={loading}
+        >
+          <Text style={styles.sendButtonText}>
+            {loading ? "..." : "Gửi"}
+          </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 10, backgroundColor: "#fff" },
-  message: { padding: 10, marginVertical: 5, borderRadius: 8 },
-  userMsg: { alignSelf: "flex-end", backgroundColor: "#DCF8C6" },
-  botMsg: { alignSelf: "flex-start", backgroundColor: "#EEE" },
-  text: { fontSize: 16 },
-  inputRow: { flexDirection: "row", alignItems: "center" },
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  header: {
+    backgroundColor: "#007AFF",
+    padding: 16,
+    alignItems: "center",
+  },
+  headerText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  messageList: {
+    padding: 16,
+  },
+  messageBubble: {
+    maxWidth: "80%",
+    padding: 12,
+    borderRadius: 16,
+    marginVertical: 4,
+  },
+  userBubble: {
+    alignSelf: "flex-end",
+    backgroundColor: "#007AFF",
+  },
+  botBubble: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fff",
+  },
+  messageText: {
+    fontSize: 16,
+    color: "#000",
+  },
+  inputContainer: {
+    flexDirection: "row",
+    padding: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+  },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 10,
-    marginRight: 10,
-  },
-  button: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 20,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
+    fontSize: 16,
+    maxHeight: 100,
+    marginRight: 8,
+  },
+  sendButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sendButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
+  sendButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
