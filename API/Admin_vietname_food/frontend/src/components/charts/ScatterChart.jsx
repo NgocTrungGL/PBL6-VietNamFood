@@ -16,9 +16,9 @@ const data2 = [
 
 const ScatterChartComponent = () => {
   return (
-    <div className="chart-container">
-      <h3 className="chart-title">Scatter Chart</h3>
-      <div className="chart-wrapper">
+    <div className="scatter-chart-container">
+      <h3 className="scatter-chart-title">Scatter Chart</h3>
+      <div className="scatter-chart-wrapper">
         <ResponsiveContainer width="100%" height={300}>
           <ScatterChart>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

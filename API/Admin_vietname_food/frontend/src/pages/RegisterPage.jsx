@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './auth.css';
 import { AuthAPI } from '../api';
 
 const RegisterPage = () => {

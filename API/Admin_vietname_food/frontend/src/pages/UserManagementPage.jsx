@@ -5,6 +5,7 @@ import {
   CheckCircle, XCircle, Calendar, User 
 } from 'lucide-react';
 import { Users } from '../api';
+import './UserManagement.css';
 
 const UserManagementPage = () => {
   const [users, setUsers] = useState([]);
@@ -17,6 +18,58 @@ const UserManagementPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+  
+  // Pagination component
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex justify-center items-center space-x-2 mt-6">
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          Trước
+        </button>
+        
+        {[...Array(totalPages)].map((_, index) => {
+          const page = index + 1;
+          return (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-2 border rounded-md text-sm font-medium ${
+                currentPage === page
+                  ? 'bg-blue-500 text-white border-blue-500'
+                  : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {page}
+            </button>
+          );
+        })}
+        
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          Sau
+        </button>
+      </div>
+    );
+  };
   
   const [newUser, setNewUser] = useState({
     username: '',
@@ -163,81 +216,23 @@ const UserManagementPage = () => {
     }
   };
 
-  const stats = {
-    total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    locked: users.filter(u => u.status === 'locked').length,
-    newThisMonth: users.filter(u => {
-      const userDate = new Date(u.createdAt);
-      const currentDate = new Date();
-      return userDate.getMonth() === currentDate.getMonth() && 
-             userDate.getFullYear() === currentDate.getFullYear();
-    }).length
-  };
-
   return (
     <div className="user-management-page">
-      <div className="page-header">
-        <h1 className="page-title">Quản lý người dùng</h1>
-        <p className="page-subtitle">Quản lý tài khoản người dùng và phân quyền hệ thống</p>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <User size={24} />
-          </div>
-          <div className="stat-content">
-            <h3>Tổng người dùng</h3>
-            <p className="stat-number">{stats.total}</p>
-          </div>
+      <div className="dashboard-content">
+      {/* Search Controls */}
+      <div className="search-controls-card">
+        <div className="search-input-wrapper">
+          <Search size={20} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm người dùng..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
         </div>
         
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <CheckCircle size={24} />
-          </div>
-          <div className="stat-content">
-            <h3>Đang hoạt động</h3>
-            <p className="stat-number">{stats.active}</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon red">
-            <XCircle size={24} />
-          </div>
-          <div className="stat-content">
-            <h3>Bị khóa</h3>
-            <p className="stat-number">{stats.locked}</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <UserPlus size={24} />
-          </div>
-          <div className="stat-content">
-            <h3>Mới tháng này</h3>
-            <p className="stat-number">{stats.newThisMonth}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="controls-section">
-        <div className="controls-left">
-          <div className="search-box">
-            <Search size={16} />
-            <input
-              type="text"
-              placeholder="Tìm kiếm người dùng..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          
+        <div className="controls-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -248,16 +243,14 @@ const UserManagementPage = () => {
             <option value="locked">Bị khóa</option>
           </select>
           
-
+          <button 
+            className="btn btn-primary"
+            onClick={() => setShowAddModal(true)}
+          >
+            <Plus size={16} />
+            Thêm người dùng
+          </button>
         </div>
-        
-        <button 
-          className="btn primary"
-          onClick={() => setShowAddModal(true)}
-        >
-          <Plus size={16} />
-          Thêm người dùng
-        </button>
       </div>
 
       {/* Users Table */}
@@ -265,25 +258,39 @@ const UserManagementPage = () => {
         <table className="users-table">
           <thead>
             <tr>
-              <th>Avatar</th>
-              <th>Tên người dùng</th>
-              <th>Email</th>
-              <th>Trạng thái</th>
-              <th>Ngày tạo</th>
-              <th>Đăng nhập cuối</th>
-              <th>Hành động</th>
+              <th style={{ width: '60px', textAlign: 'center' }}>Avatar</th>
+              <th style={{ width: '60px', textAlign: 'center' }}>ID</th>
+              <th style={{ width: '200px', textAlign: 'center' }}>Tên người dùng</th>
+              <th style={{ width: '220px' }}>Email</th>
+              <th style={{ width: '140px' }}>Trạng thái</th>
+              <th style={{ width: '120px', textAlign: 'center' }}>Ngày tạo</th>
+              <th style={{ width: '140px', textAlign: 'center' }}>Đăng nhập cuối</th>
+              <th style={{ width: '160px'}}>Hành động</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map(user => (
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="no-data">
+                  Đang tải danh sách người dùng...
+                </td>
+              </tr>
+            ) : paginatedUsers
+                .sort((a, b) => a.admin_id - b.admin_id) // Sort by ID ascending
+                .map(user => (
               <tr key={user.admin_id}>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <div className="user-avatar">
                     {user.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('data:') ? (
                       <img src={user.avatar} alt={user.username} style={{ width: 40, height: 40, borderRadius: '50%' }} />
                     ) : (
                       <span>{user.avatar || '👤'}</span>
                     )}
+                  </div>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <div className="user-id">
+                    #{user.admin_id}
                   </div>
                 </td>
                 <td>
@@ -293,11 +300,13 @@ const UserManagementPage = () => {
                   </div>
                 </td>
                 <td>
-                  <a href={`mailto:${user.email}`} className="email-link">
-                    {user.email}
-                  </a>
+                  <div className="email-cell">
+                    <a href={`mailto:${user.email}`} className="email-link">
+                      {user.email}
+                    </a>
+                  </div>
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <div className="status-cell">
                     {getStatusBadge(user.status)}
                     <div className="status-info">
@@ -308,13 +317,13 @@ const UserManagementPage = () => {
                     </div>
                   </div>
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <div className="date-info">
                     <Calendar size={12} />
                     {user.createdAt}
                   </div>
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <div className="login-info">
                     {user.lastLogin ? (
                       <>
@@ -326,7 +335,7 @@ const UserManagementPage = () => {
                     )}
                   </div>
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <div className="action-buttons">
                     <button
                       className="action-btn edit"
@@ -368,6 +377,10 @@ const UserManagementPage = () => {
             ))}
           </tbody>
         </table>
+      </div>
+      
+      <div className="pagination-wrapper">
+        {renderPagination()}
       </div>
 
       {/* Add User Modal */}
@@ -584,6 +597,7 @@ const UserManagementPage = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

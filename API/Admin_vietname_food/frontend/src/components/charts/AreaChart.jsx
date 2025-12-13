@@ -12,9 +12,9 @@ const data = [
 
 const AreaChartComponent = () => {
   return (
-    <div className="chart-container">
-      <h3 className="chart-title">Area Chart</h3>
-      <div className="chart-wrapper">
+    <div className="area-chart-container">
+      <h3 className="area-chart-title">Area Chart</h3>
+      <div className="area-chart-wrapper">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

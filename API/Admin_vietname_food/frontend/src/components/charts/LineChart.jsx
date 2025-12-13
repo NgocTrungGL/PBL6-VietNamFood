@@ -12,9 +12,9 @@ const data = [
 
 const LineChartComponent = () => {
   return (
-    <div className="chart-container">
-      <h3 className="chart-title">Line Chart</h3>
-      <div className="chart-wrapper">
+    <div className="line-chart-container">
+      <h3 className="line-chart-title">Line Chart</h3>
+      <div className="line-chart-wrapper">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

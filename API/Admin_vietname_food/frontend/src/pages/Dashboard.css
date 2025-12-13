@@ -1,0 +1,286 @@
+/* Dashboard Styles */
+/* Page container styling moved to global CSS */
+
+.dashboard-header {
+  margin-bottom: 32px;
+}
+
+.dashboard-title {
+  font-size: 32px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 8px 0;
+}
+
+.dashboard-subtitle {
+  color: #7f8c8d;
+  font-size: 16px;
+  margin: 0;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Stats Cards */
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.dashboard-card {
+  background: white;
+  border-radius: 0px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 120px;
+  height: 120px;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.card-icon {
+  flex-shrink: 0;
+}
+
+.icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+}
+
+.icon-circle.blue {
+  background: linear-gradient(135deg, #4285f4, #1976d2);
+}
+
+.icon-circle.green {
+  background: linear-gradient(135deg, #34a853, #0f9d58);
+}
+
+.icon-circle.orange {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+}
+
+.icon-circle.purple {
+  background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+}
+
+.card-content h3 {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 4px 0;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0 0 4px 0;
+  line-height: 1;
+}
+
+.card-label {
+  font-size: 14px;
+  color: #7f8c8d;
+}
+
+/* Info Section */
+.dashboard-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.info-card {
+  background: white;
+  border-radius: 0px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.info-card h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 24px 0;
+}
+
+/* Top Foods List */
+.top-foods {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.food-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.food-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.food-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+.food-region {
+  font-size: 14px;
+  color: #7f8c8d;
+}
+
+.food-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.food-count {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.food-bar {
+  width: 100px;
+  height: 6px;
+  background-color: #e9ecef;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.food-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #4285f4, #1976d2);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Activity List */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-dot.success {
+  background-color: #34a853;
+}
+
+.activity-dot.warning {
+  background-color: #ff9800;
+}
+
+.activity-dot.error {
+  background-color: #ea4335;
+}
+
+.activity-item span:nth-child(2) {
+  flex: 1;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.activity-time {
+  color: #7f8c8d;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .dashboard-cards {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  
+  .dashboard-card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-info {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-page {
+    padding: 16px;
+  }
+  
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-card {
+    padding: 20px;
+  }
+  
+  .food-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .food-stats {
+    align-items: flex-start;
+    width: 100%;
+  }
+  
+  .food-bar {
+    width: 100%;
+  }
+}

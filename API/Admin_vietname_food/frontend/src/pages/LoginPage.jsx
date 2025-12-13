@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './auth.css';
 import { AuthAPI } from '../api';
 
 const LoginPage = () => {
@@ -44,7 +43,10 @@ const LoginPage = () => {
 
           {error && <div className="auth-error">{error}</div>}
 
-          <button type="submit" className="primary-btn" disabled={loading}>
+          {/* <button type="submit" name="login-btnn" className="primary-btn" disabled={loading}>
+            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+          </button> */}
+          <button type="submit" className="primary-btn" >
             {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>

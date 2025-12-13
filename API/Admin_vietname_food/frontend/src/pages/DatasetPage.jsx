@@ -206,13 +206,9 @@ const DatasetPage = () => {
 
   return (
     <div className="dataset-page">
-      <div className="page-header">
-        <h1 className="page-title">Bộ dữ liệu AI</h1>
-        <p className="page-subtitle">Quản lý ảnh dùng để huấn luyện mô hình nhận diện món ăn</p>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="stats-grid">
+      <div className="dashboard-content">
+        {/* Statistics Cards */}
+        <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon blue">
             <HardDrive size={24} />
@@ -254,74 +250,66 @@ const DatasetPage = () => {
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="controls-section">
-        <div className="controls-left">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            multiple
-            accept="image/*"
-            style={{ display: 'none' }}
-          />
-          
-          <button 
-            className="btn primary"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload size={16} />
-            Tải ảnh lên
-          </button>
-          
-          <button 
-            className="btn secondary"
-            onClick={handleStartTraining}
-            disabled={selectedImages.length === 0 || isTraining}
-          >
-            {isTraining ? <Pause size={16} /> : <Play size={16} />}
-            {isTraining ? 'Đang huấn luyện...' : `Huấn luyện (${selectedImages.length})`}
-          </button>
-          
-          <button className="btn secondary">
-            <Download size={16} />
-            Xuất dữ liệu
-          </button>
-        </div>
-        
-        <div className="controls-right">
-          <div className="search-box">
-            <Search size={16} />
+        {/* Controls */}
+        <div className="dataset-actions-card">
+          <div className="action-buttons-left">
             <input
-              type="text"
-              placeholder="Tìm kiếm ảnh..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              multiple
+              accept="image/*"
+              style={{ display: 'none' }}
             />
+            
+            <button 
+              className="btn btn-primary"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={16} />
+              Tải ảnh lên
+            </button>
+            
+            <button 
+              className="btn btn-secondary"
+              onClick={handleStartTraining}
+              disabled={selectedImages.length === 0 || isTraining}
+            >
+              {isTraining ? <Pause size={16} /> : <Play size={16} />}
+              {isTraining ? 'Đang huấn luyện...' : `Huấn luyện (${selectedImages.length})`}
+            </button>
+            
+            <button className="btn btn-secondary">
+              <Download size={16} />
+              Xuất dữ liệu
+            </button>
           </div>
           
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="pending">Chờ xử lý</option>
-            <option value="labeled">Đã gắn nhãn</option>
-            <option value="verified">Đã xác thực</option>
-            <option value="error">Lỗi</option>
-          </select>
-          
-          <select
-            value={filterRegion}
-            onChange={(e) => setFilterRegion(e.target.value)}
-          >
-            <option value="">Tất cả vùng miền</option>
-            <option value="Miền Bắc">Miền Bắc</option>
-            <option value="Miền Trung">Miền Trung</option>
-            <option value="Miền Nam">Miền Nam</option>
-          </select>
+          <div className="controls-right">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="pending">Chờ xử lý</option>
+              <option value="labeled">Đã gắn nhãn</option>
+              <option value="verified">Đã xác thực</option>
+              <option value="error">Lỗi</option>
+            </select>
+            
+            <select
+              value={filterRegion}
+              onChange={(e) => setFilterRegion(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">Tất cả vùng miền</option>
+              <option value="Miền Bắc">Miền Bắc</option>
+              <option value="Miền Trung">Miền Trung</option>
+              <option value="Miền Nam">Miền Nam</option>
+            </select>
+          </div>
         </div>
-      </div>
 
       {/* Bulk Actions */}
       {selectedImages.length > 0 && (
@@ -528,6 +516,7 @@ const DatasetPage = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

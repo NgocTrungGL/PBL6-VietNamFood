@@ -11,9 +11,9 @@ const data = [
 
 const BarChartComponent = () => {
   return (
-    <div className="chart-container">
-      <h3 className="chart-title">Bar Chart</h3>
-      <div className="chart-wrapper">
+    <div className="bar-chart-container">
+      <h3 className="bar-chart-title">Bar Chart</h3>
+      <div className="bar-chart-wrapper">
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

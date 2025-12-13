@@ -3,16 +3,17 @@ import request from './request';
 export function mapFromBackend(row) {
   return {
     id: row.category_id,
-    category_name: row.category_name,
-    description: row.description,
+    name: row.category_name, // Map to 'name' for UI consistency
+    category_name: row.category_name, // Keep original field for backward compatibility
     image: row.image, // base64 string
+    description: row.description, // Include description field
     created_at: row.created_at,
   };
 }
 
 export function mapToBackend(data) {
   return {
-    category_name: data.category_name,
+    category_name: data.category_name || data.name,
     description: data.description,
     image: data.image,
   };
