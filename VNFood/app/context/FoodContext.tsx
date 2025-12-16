@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useMemo } from "react";
 import { API_HOME_URL } from "@env";
 import { FoodDetails } from "../../components/FoodCard/FoodCard";
+
 // --- 1. ĐỊNH NGHĨA CÁC KIỂU DỮ LIỆU TỪ API (RAW) ---
 interface Category {
   category_id: number;
@@ -36,6 +37,7 @@ interface FoodContextType {
   regions: Region[];
   loading: boolean;
   refreshData: () => Promise<void>;
+  updateFoodRating: (foodId: number, newRating: number) => void; // Hàm cập nhật rating realtime
 }
 
 const FoodContext = createContext<FoodContextType | null>(null);
@@ -53,7 +55,7 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log("FoodContext: Đang tải dữ liệu từ", BASE_URL);
+      // console.log("FoodContext: Đang tải dữ liệu từ", BASE_URL);
 
       const [foodsRes, catRes, regRes] = await Promise.all([
         fetch(`${BASE_URL}/foods`),
@@ -86,7 +88,8 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
     fetchData();
   }, []);
 
-  // --- 4. XỬ LÝ DỮ LIỆU TẬP TRUNG (QUAN TRỌNG) ---
+  // --- 4. XỬ LÝ DỮ LIỆU TẬP TRUNG ---
+  // Dùng useMemo để tự động tính toán lại danh sách hiển thị khi rawFoods thay đổi
   const processedFoods: FoodDetails[] = useMemo(() => {
     if (!rawFoods.length) return [];
 
@@ -111,7 +114,7 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Trả về object chuẩn FoodDetails
       return {
-        food_id: food.food_id.toString(), // Chuyển sang string cho thống nhất
+        food_id: food.food_id.toString(), // Chuyển sang string cho thống nhất với UI
         name: food.name,
         description: food.description,
         main_image: imageSource,
@@ -128,6 +131,19 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [rawFoods, categories, regions]);
 
+  // --- 5. HÀM CẬP NHẬT RATING REALTIME ---
+  const updateFoodRating = (foodId: number, newRating: number) => {
+    // Chúng ta cập nhật vào rawFoods (dữ liệu gốc)
+    // useMemo bên trên sẽ tự động phát hiện thay đổi và tính lại processedFoods
+    setRawFoods((prevRawFoods) =>
+      prevRawFoods.map((food) =>
+        food.food_id === foodId
+          ? { ...food, avg_rating: newRating } // Cập nhật rating mới vào item tương ứng
+          : food
+      )
+    );
+  };
+
   return (
     <FoodContext.Provider
       value={{
@@ -135,7 +151,8 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
         categories,
         regions,
         loading,
-        refreshData: fetchData
+        refreshData: fetchData,
+        updateFoodRating // Export hàm này để các màn hình con sử dụng
       }}
     >
       {children}
