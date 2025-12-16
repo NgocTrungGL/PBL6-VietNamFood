@@ -11,8 +11,8 @@ import {
   Platform,
   FlatList,
   Modal,
-  Share, // 👈 Thêm cái này
-  Alert, // 👈 Thêm cái này (nếu chưa có)
+  Share,
+  Alert,
   TextInput,
   KeyboardAvoidingView,
 } from "react-native";
@@ -22,7 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FoodDetails } from "../../components/FoodCard/FoodCard";
 import { API_HOME_URL } from "@env";
 import { useAuth } from "../../app/context/AuthContext";
-
+import { useFood } from "../../app/context/FoodContext";
 interface Review {
   review_id: number;
   user_id: number;
@@ -42,6 +42,7 @@ interface FoodImage {
 type RootStackParamList = {
   FoodDetailScreen: { foodData: FoodDetails };
   RecipeDetailScreen: { foodId: number };
+  MainTabs: { screen: string; params: { searchQuery: string } }; // Định nghĩa thêm cho TS
 };
 
 type FoodDetailRouteProp = RouteProp<RootStackParamList, "FoodDetailScreen">;
@@ -55,6 +56,7 @@ const FoodDetailScreen: React.FC = () => {
   const { foodData } = route.params;
   const BASE_URL = API_HOME_URL || "http://192.168.1.5:5000/api";
   const { user } = useAuth();
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isWannaTry, setIsWannaTry] = useState(false);
   const [gallery, setGallery] = useState<FoodImage[]>([]);
@@ -62,7 +64,15 @@ const FoodDetailScreen: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userComment, setUserComment] = useState("");
+  const { updateFoodRating } = useFood();
+
+  const [currentAvgRating, setCurrentAvgRating] = useState(foodData.avg_rating);
+  // 👈 STATE MỚI: Món ăn tương tự
+  const [similarFoods, setSimilarFoods] = useState<FoodDetails[]>([]);
+
   const flatListRef = useRef<FlatList>(null);
+
+  // --- 1. CHECK FAVORITE ---
   useEffect(() => {
     const checkFavoriteStatus = async () => {
       if (!user) return;
@@ -77,42 +87,33 @@ const FoodDetailScreen: React.FC = () => {
     checkFavoriteStatus();
   }, [user, foodData.food_id]);
 
-  // --- 2. XỬ LÝ NÚT TIM (WANNA TRY) ---
+  // --- 2. TOGGLE FAVORITE ---
   const handleToggleWannaTry = async () => {
     if (!user) {
       Alert.alert("Thông báo", "Vui lòng đăng nhập để lưu món ăn!");
       return;
     }
-
-    // UI Optimistic Update: Đổi màu ngay cho mượt, nếu lỗi thì đổi lại sau
     const previousState = isWannaTry;
     setIsWannaTry(!isWannaTry);
 
     try {
       if (previousState) {
-        // Đang like -> Bấm vào -> UNLIKE (DELETE)
-        await fetch(`${BASE_URL}/favorites?user_id=${user.user_id}&food_id=${foodData.food_id}`, {
-          method: "DELETE",
-        });
+        await fetch(`${BASE_URL}/favorites?user_id=${user.user_id}&food_id=${foodData.food_id}`, { method: "DELETE" });
       } else {
-        // Chưa like -> Bấm vào -> LIKE (POST)
         await fetch(`${BASE_URL}/favorites`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: user.user_id,
-            food_id: Number(foodData.food_id),
-          }),
+          body: JSON.stringify({ user_id: user.user_id, food_id: Number(foodData.food_id) }),
         });
       }
     } catch (error) {
       console.error("Favorite toggle error:", error);
-      setIsWannaTry(previousState); // Revert nếu lỗi
+      setIsWannaTry(previousState);
       Alert.alert("Lỗi", "Không thể cập nhật trạng thái yêu thích.");
     }
   };
 
-  // --- 3. XỬ LÝ GỬI ĐÁNH GIÁ (REVIEW) ---
+// --- 3. XỬ LÝ GỬI ĐÁNH GIÁ (REVIEW) ---
   const handleSubmitReview = async () => {
     if (!user) {
         Alert.alert("Yêu cầu", "Bạn cần đăng nhập để viết đánh giá.");
@@ -141,7 +142,20 @@ const FoodDetailScreen: React.FC = () => {
             Alert.alert("Thành công", "Cảm ơn đánh giá của bạn!");
             setShowReviewModal(false);
 
-            // Cập nhật list review ngay lập tức (Fake update để không cần gọi lại API)
+            // 👇 LOGIC CẬP NHẬT RATING REALTIME (MỚI)
+            if (data.new_rating) {
+                // 1. Cập nhật số sao hiển thị trên màn hình hiện tại
+                // (Đảm bảo bạn đã khai báo state currentAvgRating ở đầu component như hướng dẫn trước)
+                if (typeof setCurrentAvgRating === 'function') {
+                    setCurrentAvgRating(data.new_rating);
+                }
+
+                // 2. Cập nhật số sao trong Context (để Home screen cũng đổi theo)
+                // (Đảm bảo bạn đã const { updateFoodRating } = useFood() ở đầu component)
+                updateFoodRating(Number(foodData.food_id), data.new_rating);
+            }
+
+            // Cập nhật list review (Fake update để không cần gọi lại API)
             const newReview: Review = {
                 review_id: Date.now(), // ID tạm
                 user_id: user.user_id,
@@ -164,68 +178,72 @@ const FoodDetailScreen: React.FC = () => {
         Alert.alert("Lỗi", "Lỗi kết nối đến server.");
     }
   };
+
   const handleShare = async () => {
     try {
-      // Tạo nội dung tin nhắn muốn chia sẻ
       const message = `🍕 Mời bạn đi ăn món ngon này nè!\n\n` +
                       `🇻🇳 Tên món: ${foodData.name}\n` +
                       `📍 Vùng miền: ${foodData.region_name}\n\n` +
                       `"${(foodData as any).description || "Hương vị tuyệt vời!"}"\n\n` +
-                      `👉 Xem chi tiết tại VN Food App`
-                      ;
-
-      const result = await Share.share({
-        message: message,
-        title: `Chia sẻ món ${foodData.name}`, // Tiêu đề (chủ yếu hiện trên Android)
-        // url: ... (Nếu bạn có website thì điền link web vào đây, iOS sẽ hiển thị preview đẹp hơn)
-      });
-
-      if (result.action === Share.sharedAction) {
-        if (result.activityType) {
-          // Đã chia sẻ qua một app cụ thể (iOS)
-          console.log("Shared via", result.activityType);
-        } else {
-          // Đã chia sẻ thành công
-          console.log("Shared success");
-        }
-      } else if (result.action === Share.dismissedAction) {
-        // Người dùng bấm hủy
-        console.log("Dismissed");
-      }
-    } catch (error: any) {
-      Alert.alert("Lỗi", error.message);
-    }
+                      `👉 Xem chi tiết tại VN Food App`;
+      await Share.share({ message: message, title: `Chia sẻ món ${foodData.name}` });
+    } catch (error: any) { Alert.alert("Lỗi", error.message); }
   };
+
+  // --- HELPER IMAGE ---
+  const getSafeMainImage = () => {
+    if (!foodData.main_image) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
+    if (typeof foodData.main_image === "object" && (foodData.main_image as any).uri) return (foodData.main_image as any).uri;
+    return String(foodData.main_image);
+  };
+
+  // Helper xử lý ảnh chung (cho cả gallery và similar foods)
+  const getFoodImageUri = (image: any) => {
+    if (!image) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
+    // Nếu là object có uri (ImagePicker)
+    if (typeof image === 'object' && image.uri) return image.uri;
+    const imgString = String(image);
+    if (imgString.startsWith("http") || imgString.startsWith("file") || imgString.startsWith("data:")) return imgString;
+    return `data:image/jpeg;base64,${imgString}`;
+  };
+
   const displayImages = gallery.length > 0
     ? gallery
-    : [{
-        image_id: -1,
-        image_data: typeof foodData.main_image === "object" ? foodData.main_image.uri : String(foodData.main_image),
-        caption: ''
-      }];
-  // --- FETCH DATA ---
+    : [{ image_id: -1, image_data: getSafeMainImage(), caption: '' }];
+
+  // --- FETCH DATA (REVIEWS, IMAGES, RECOMMENDATIONS) ---
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const [reviewsRes, imgRes] = await Promise.all([
+        // 👈 GỌI THÊM API RECOMMEND
+        const [reviewsRes, imgRes, recRes] = await Promise.all([
           fetch(`${BASE_URL}/reviews/${foodData.food_id}`),
-          fetch(`${BASE_URL}/food_images/${foodData.food_id}`)
+          fetch(`${BASE_URL}/food_images/${foodData.food_id}`),
+          fetch(`${BASE_URL}/recommend/${foodData.food_id}`)
         ]);
 
         const reviewsData = await reviewsRes.json();
         const imgData = await imgRes.json();
 
+        // Xử lý Reviews
         if (Array.isArray(reviewsData)) setReviews(reviewsData);
 
+        // Xử lý Gallery
         if (Array.isArray(imgData) && imgData.length > 0) {
           setGallery(imgData);
         } else {
-          setGallery([{
-            image_id: 0,
-            image_data: typeof foodData.main_image === "object" ? foodData.main_image.uri : String(foodData.main_image),
-            caption: foodData.name
-          }]);
+          setGallery([{ image_id: 0, image_data: getSafeMainImage(), caption: foodData.name }]);
         }
+
+        // 👈 Xử lý Recommendations
+        if (recRes.ok) {
+            const recData = await recRes.json();
+            if (recData.recommend_foods && Array.isArray(recData.recommend_foods)) {
+                // Chỉ lấy tối đa 3 món
+                setSimilarFoods(recData.recommend_foods.slice(0, 3));
+            }
+        }
+
       } catch (error) {
         console.error("Lỗi tải chi tiết:", error);
       }
@@ -233,149 +251,90 @@ const FoodDetailScreen: React.FC = () => {
     fetchDetails();
   }, [foodData.food_id]);
 
-  // Auto scroll
+  // Auto scroll slider
   useEffect(() => {
     if (displayImages.length <= 1) return;
-
     const intervalId = setInterval(() => {
       const nextIndex = (activeIndex + 1) % displayImages.length;
-      if (flatListRef.current) {
-        flatListRef.current.scrollToIndex({ index: nextIndex, animated: true });
-      }
+      if (flatListRef.current) flatListRef.current.scrollToIndex({ index: nextIndex, animated: true });
       setActiveIndex(nextIndex);
     }, 3000);
-
     return () => clearInterval(intervalId);
   }, [activeIndex, displayImages.length]);
 
-  const getFoodImageUri = (imagePath: string) => {
-    if (!imagePath) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
-    if (imagePath.startsWith("http") || imagePath.startsWith("file") || imagePath.startsWith("data:")) {
-      return imagePath;
-    }
-    return `data:image/jpeg;base64,${imagePath}`;
-  };
-
   const handleScroll = (event: any) => {
     const slideSize = event.nativeEvent.layoutMeasurement.width;
-    const index = event.nativeEvent.contentOffset.x / slideSize;
-    const roundIndex = Math.round(index);
+    const roundIndex = Math.round(event.nativeEvent.contentOffset.x / slideSize);
     if (roundIndex !== activeIndex) setActiveIndex(roundIndex);
   };
 
   const onScrollToIndexFailed = (info: any) => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
-    }, 500);
+    setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 500);
   };
 
-  const handleGoToRecipes = () => {
-    // navigation.navigate("RecipeDetailScreen", { foodId: Number(foodData.food_id) });
-    navigation.navigate("RecipeDetailScreen", { foodData: foodData });
+  const handleGoToRecipes = () => navigation.navigate("RecipeDetailScreen", { foodData: foodData });
+
+  const handleGoEat = () => navigation.navigate("MainTabs", { screen: "Map", params: { searchQuery: foodData.name } });
+
+  // 👈 HÀM CHUYỂN TRANG KHI BẤM VÀO MÓN TƯƠNG TỰ
+  const handlePressSimilarFood = (item: FoodDetails) => {
+      // Dùng push để mở đè lên màn hình hiện tại (tạo instance mới)
+      // Nếu navigation của bạn không hỗ trợ push, có thể dùng navigate nhưng cần set key duy nhất
+      // Ở đây dùng navigate thông thường, React Navigation mặc định sẽ push nếu cùng route name
+      navigation.push("FoodDetailScreen", { foodData: item });
   };
 
-  // const handleToggleWannaTry = () => setIsWannaTry(!isWannaTry);
-  // 👇 HÀM MỚI: Xử lý đi ăn ngay
-  const handleGoEat = () => {
-    // Điều hướng sang MapScreen và truyền tên món ăn làm từ khóa tìm kiếm
-    navigation.navigate("MainTabs", {
-      screen: "Map", // Nếu Map nằm trong BottomTab, phải trỏ đúng đường dẫn
-      params: { searchQuery: foodData.name }
-    });
-
-    // ⚠️ LƯU Ý: Nếu MapScreen KHÔNG nằm trong Tab mà nằm ngoài Stack,
-    // thì dùng: navigation.navigate("MapScreen", { searchQuery: foodData.name });
-  };
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }} bounces={false}>
-        {/* Slider */}
+        {/* Slider (Giữ nguyên) */}
         <View style={styles.sliderContainer}>
           <FlatList
-            ref={flatListRef}
-            data={displayImages}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, index) => index.toString()}
-            onScroll={handleScroll}
-            onScrollToIndexFailed={onScrollToIndexFailed}
+            ref={flatListRef} data={displayImages} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, index) => index.toString()} onScroll={handleScroll} onScrollToIndexFailed={onScrollToIndexFailed}
             renderItem={({ item }) => (
               <View style={styles.slideItem}>
                 <Image source={{ uri: getFoodImageUri(item.image_data) }} style={styles.mainImage} resizeMode="cover" />
-                {item.caption && (
-                  <View style={styles.captionContainer}>
-                    <Text style={styles.captionText}>{item.caption}</Text>
-                  </View>
-                )}
+                {item.caption && <View style={styles.captionContainer}><Text style={styles.captionText}>{item.caption}</Text></View>}
                 <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.imageOverlay} pointerEvents="none" />
               </View>
             )}
           />
-          {/* Top Buttons */}
           <View style={styles.topButtons}>
-            <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.circleBtn} onPress={handleShare}>
-              <Ionicons name="share-social-outline" size={24} color="#fff" />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
+            <TouchableOpacity style={styles.circleBtn} onPress={handleShare}><Ionicons name="share-social-outline" size={24} color="#fff" /></TouchableOpacity>
           </View>
-
-          {/* Header Info */}
           <View style={styles.headerInfo}>
             <View style={styles.badgeContainer}>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{foodData.category_name}</Text>
-              </View>
+              <View style={styles.categoryBadge}><Text style={styles.categoryText}>{foodData.category_name}</Text></View>
               <View style={[styles.categoryBadge, { backgroundColor: "#FFC107" }]}>
                 <Ionicons name="star" size={12} color="#fff" />
-                <Text style={[styles.categoryText, { marginLeft: 4 }]}>
-                  {foodData.avg_rating ? Number(foodData.avg_rating).toFixed(1) : "New"}
-                </Text>
+                <Text style={[styles.categoryText, { marginLeft: 4 }]}>{foodData.avg_rating ? Number(foodData.avg_rating).toFixed(1) : "New"}</Text>
               </View>
             </View>
             <Text style={styles.foodNameTitle}>{foodData.name}</Text>
-            <View style={styles.locationRow}>
-              <Ionicons name="location-sharp" size={16} color="#ddd" />
-              <Text style={styles.locationText}>{foodData.region_name}</Text>
-            </View>
+            <View style={styles.locationRow}><Ionicons name="location-sharp" size={16} color="#ddd" /><Text style={styles.locationText}>{foodData.region_name}</Text></View>
           </View>
         </View>
 
         {/* Body */}
         <View style={styles.bodyContainer}>
-          {/* ACTION BAR */}
-        <View style={styles.actionBar}>
-             {/* Bên trái: Thông tin phổ biến */}
+          <View style={styles.actionBar}>
              <View style={styles.priceBox}>
                 <Text style={styles.priceLabel}>Độ phổ biến</Text>
                 <Text style={styles.priceValue}>{foodData.most_popular ? "🔥 Rất cao" : "⭐ Bình thường"}</Text>
              </View>
-
-             {/* Bên phải: 2 Nút hành động */}
              <View style={styles.buttonsGroup}>
-                {/* 👇 NÚT MỚI: GO EAT */}
                 <TouchableOpacity style={styles.goEatBtn} onPress={handleGoEat}>
                     <Ionicons name="navigate-circle" size={20} color="#fff" />
                     <Text style={styles.goEatText}>Go Eat</Text>
                 </TouchableOpacity>
-
-                {/* Nút Wanna Try Cũ */}
                 <TouchableOpacity style={styles.wannaTryBtn} onPress={handleToggleWannaTry}>
-                    <Ionicons
-                        name={isWannaTry ? "heart" : "heart-outline"}
-                        size={22}
-                        color={isWannaTry ? "#FF5252" : "#444"}
-                    />
-                    {/* Ẩn text trên màn hình nhỏ nếu cần, hoặc để ngắn gọn */}
-                    {/* <Text style={[styles.wannaTryText, isWannaTry && { color: "#FF5252" }]}>
-                        {isWannaTry ? "Đã lưu" : "Lưu"}
-                    </Text> */}
+                    <Ionicons name={isWannaTry ? "heart" : "heart-outline"} size={22} color={isWannaTry ? "#FF5252" : "#444"} />
                 </TouchableOpacity>
              </View>
-        </View>
+          </View>
 
           <View style={styles.divider} />
 
@@ -384,23 +343,50 @@ const FoodDetailScreen: React.FC = () => {
 
           {(foodData as any).nutrition_info && (
             <View style={styles.infoBox}>
-              <View style={styles.infoBoxHeader}>
-                <Ionicons name="nutrition-outline" size={20} color="#2E7D32" />
-                <Text style={styles.infoBoxTitle}>Giá trị dinh dưỡng</Text>
-              </View>
+              <View style={styles.infoBoxHeader}><Ionicons name="nutrition-outline" size={20} color="#2E7D32" /><Text style={styles.infoBoxTitle}>Giá trị dinh dưỡng</Text></View>
               <Text style={styles.infoBoxContent}>{(foodData as any).nutrition_info}</Text>
             </View>
           )}
 
           {(foodData as any).ingredients && (
             <View style={[styles.infoBox, { backgroundColor: "#FFF3E0" }]}>
-              <View style={styles.infoBoxHeader}>
-                <Ionicons name="basket-outline" size={20} color="#E65100" />
-                <Text style={[styles.infoBoxTitle, { color: "#E65100" }]}>Thành phần chính</Text>
-              </View>
+              <View style={styles.infoBoxHeader}><Ionicons name="basket-outline" size={20} color="#E65100" /><Text style={[styles.infoBoxTitle, { color: "#E65100" }]}>Thành phần chính</Text></View>
               <Text style={[styles.infoBoxContent, { color: "#BF360C" }]}>{(foodData as any).ingredients}</Text>
             </View>
           )}
+
+          {/* 👈 SECTION MỚI: MÓN ĂN TƯƠNG TỰ */}
+          {similarFoods.length > 0 && (
+            <View style={styles.similarSection}>
+                <Text style={styles.sectionTitle}>Món ăn tương tự</Text>
+                <View style={styles.similarContainer}>
+                    {similarFoods.map((item) => (
+                        <TouchableOpacity
+                            key={item.food_id}
+                            style={styles.similarItem}
+                            onPress={() => handlePressSimilarFood(item)}
+                        >
+                            <Image
+                                source={{ uri: getFoodImageUri(item.main_image) }}
+                                style={styles.similarImage}
+                                resizeMode="cover"
+                            />
+                            <View style={styles.similarInfo}>
+                                <Text style={styles.similarName} numberOfLines={2}>{item.name}</Text>
+                                <View style={styles.similarRating}>
+                                    <Ionicons name="star" size={12} color="#FFC107" />
+                                    <Text style={styles.similarRatingText}>
+                                        {item.avg_rating ? Number(item.avg_rating).toFixed(1) : "N/A"}
+                                    </Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+          )}
+
+          <View style={styles.divider} />
 
           {/* User Rating Section */}
           <View style={styles.userRatingSection}>
@@ -416,41 +402,32 @@ const FoodDetailScreen: React.FC = () => {
           {/* Reviews List */}
           <View style={styles.reviewSectionHeader}>
             <Text style={styles.sectionTitle}>Đánh giá ({reviews.length})</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>Xem tất cả</Text>
-            </TouchableOpacity>
+            <TouchableOpacity><Text style={styles.seeAllText}>Xem tất cả</Text></TouchableOpacity>
           </View>
 
           {reviews.length > 0 ? (
             reviews.map((item) => (
               <View key={item.review_id} style={styles.reviewItem}>
-                <Image
-                  source={item.user_avatar ? { uri: item.user_avatar } : { uri: "https://cdn-icons-png.flaticon.com/512/149/149071.png" }}
-                  style={styles.avatar}
-                />
+                <Image source={item.user_avatar ? { uri: item.user_avatar } : { uri: "https://cdn-icons-png.flaticon.com/512/149/149071.png" }} style={styles.avatar} />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                     <Text style={styles.reviewName}>{item.user_name || "Ẩn danh"}</Text>
                     <Text style={styles.reviewDate}>{new Date(item.created_at).toLocaleDateString("vi-VN")}</Text>
                   </View>
                   <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                    {[...Array(5)].map((_, i) => (
-                      <Ionicons key={i} name={i < item.rating ? "star" : "star-outline"} size={12} color="#FFC107" />
-                    ))}
+                    {[...Array(5)].map((_, i) => (<Ionicons key={i} name={i < item.rating ? "star" : "star-outline"} size={12} color="#FFC107" />))}
                   </View>
                   <Text style={styles.reviewComment}>{item.comment}</Text>
                 </View>
               </View>
             ))
           ) : (
-            <Text style={{ textAlign: "center", color: "#888", fontStyle: "italic", marginBottom: 20 }}>
-              Chưa có đánh giá nào.
-            </Text>
+            <Text style={{ textAlign: "center", color: "#888", fontStyle: "italic", marginBottom: 20 }}>Chưa có đánh giá nào.</Text>
           )}
         </View>
       </ScrollView>
 
-      {/* Bottom Recipe Button */}
+      {/* Bottom Recipe Button (Giữ nguyên) */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity style={styles.recipeBtn} onPress={handleGoToRecipes}>
           <LinearGradient colors={["#66BB6A", "#43A047"]} style={styles.gradientBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
@@ -460,68 +437,28 @@ const FoodDetailScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Review Modal */}
-      <Modal
-        visible={showReviewModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowReviewModal(false)}
-      >
-        {/* 👇 BỌC BẰNG KEYBOARD AVOIDING VIEW */}
-        <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalOverlay}
-        >
-            {/* Lớp nền tối để bấm ra ngoài thì đóng */}
-            <TouchableOpacity
-                style={styles.modalBackdrop}
-                activeOpacity={1}
-                onPress={() => setShowReviewModal(false)}
-            />
-
+      {/* Review Modal (Giữ nguyên) */}
+      <Modal visible={showReviewModal} animationType="slide" transparent={true} onRequestClose={() => setShowReviewModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+            <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowReviewModal(false)} />
             <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Đánh giá món ăn</Text>
-                    <TouchableOpacity onPress={() => setShowReviewModal(false)}>
-                        <Ionicons name="close" size={24} color="#888" />
-                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowReviewModal(false)}><Ionicons name="close" size={24} color="#888" /></TouchableOpacity>
                 </View>
-
                 <Text style={styles.modalLabel}>Bạn cảm thấy thế nào?</Text>
                 <View style={styles.starsContainer}>
                     {[1, 2, 3, 4, 5].map((star) => (
                         <TouchableOpacity key={star} onPress={() => setUserRating(star)} activeOpacity={0.7}>
-                            <Ionicons
-                                name={star <= userRating ? "star" : "star-outline"}
-                                size={40}
-                                color={star <= userRating ? "#FFC107" : "#ddd"}
-                                style={{ marginHorizontal: 5 }}
-                            />
+                            <Ionicons name={star <= userRating ? "star" : "star-outline"} size={40} color={star <= userRating ? "#FFC107" : "#ddd"} style={{ marginHorizontal: 5 }} />
                         </TouchableOpacity>
                     ))}
                 </View>
-
                 <Text style={styles.modalLabel}>Chia sẻ cảm nhận của bạn</Text>
                 <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.textInput}
-                        placeholder="Món này ngon không?..."
-                        placeholderTextColor="#999"
-                        multiline
-                        numberOfLines={4}
-                        value={userComment}
-                        onChangeText={setUserComment}
-                        // 👇 Thêm dòng này để nút Done tắt bàn phím
-                        returnKeyType="done"
-                        blurOnSubmit={true}
-                    />
+                    <TextInput style={styles.textInput} placeholder="Món này ngon không?..." placeholderTextColor="#999" multiline numberOfLines={4} value={userComment} onChangeText={setUserComment} returnKeyType="done" blurOnSubmit={true} />
                 </View>
-
-                <TouchableOpacity
-                    style={[styles.submitBtn, userRating === 0 && { backgroundColor: "#ccc" }]}
-                    disabled={userRating === 0}
-                    onPress={handleSubmitReview}
-                >
+                <TouchableOpacity style={[styles.submitBtn, userRating === 0 && { backgroundColor: "#ccc" }]} disabled={userRating === 0} onPress={handleSubmitReview}>
                     <Text style={styles.submitBtnText}>Gửi đánh giá</Text>
                 </TouchableOpacity>
             </View>
@@ -532,6 +469,7 @@ const FoodDetailScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  // ... Các style cũ giữ nguyên ...
   container: { flex: 1, backgroundColor: "#fff" },
   sliderContainer: { height: HEADER_HEIGHT, width: "100%", position: "relative" },
   slideItem: { width: screenWidth, height: HEADER_HEIGHT },
@@ -581,80 +519,67 @@ const styles = StyleSheet.create({
   textInput: { height: 100, textAlignVertical: "top", fontSize: 15, color: "#333" },
   submitBtn: { backgroundColor: "#66BB6A", paddingVertical: 15, borderRadius: 12, alignItems: "center" },
   submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  actionBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  priceBox: { flex: 1, justifyContent: 'center' },
+  buttonsGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  wannaTryBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 20 },
+  goEatBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#66BB6A', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, elevation: 3, shadowColor: "#66BB6A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  goEatText: { color: '#fff', fontWeight: 'bold', fontSize: 13, marginLeft: 6 },
+  modalOverlay: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: 20 },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: -1 },
+  modalContent: { backgroundColor: "#fff", width: "100%", borderRadius: 20, padding: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+
+  // 👈 STYLE MỚI CHO SIMILAR FOODS
+  similarSection: {
     marginBottom: 20,
   },
-  priceBox: {
-    flex: 1, // Chiếm phần không gian còn lại bên trái
-    justifyContent: 'center',
+  similarContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between', // Chia đều khoảng cách
   },
-
-  // Container chứa 2 nút bên phải
-  buttonsGroup: {
+  similarItem: {
+    width: (screenWidth - 40 - 20) / 3, // (Màn hình - Padding Container - Khoảng cách giữa các item) / 3
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    // Shadow nhẹ cho thẻ
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  similarImage: {
+    width: '100%',
+    height: 80, // Chiều cao ảnh thumbnail
+    backgroundColor: '#eee',
+  },
+  similarInfo: {
+    paddingVertical: 8,  // Tăng padding dọc một chút cho thoáng
+    paddingHorizontal: 6,
+    flex: 1,             // Để phần info chiếm hết khoảng trống còn lại
+    justifyContent: 'space-between' // (Opsional) Để đẩy nội dung cho cân đối nếu cần
+  },
+  similarName: {
+    fontSize: 13,        // Tăng nhẹ size chữ cho dễ đọc
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,     // Khoảng cách với rating
+    // height: 32,       // 👈 XÓA HOẶC COMMENT DÒNG NÀY (Nguyên nhân gây khoảng trống)
+    lineHeight: 18,      // Thêm line-height để text 2 dòng không bị dính
+  },
+  similarRating: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10, // Khoảng cách giữa 2 nút (nếu React Native > 0.71), nếu lỗi dùng marginLeft ở nút sau
+    marginTop: 'auto',   // Mẹo: Đẩy rating xuống đáy nếu muốn các thẻ bằng nhau, hoặc bỏ đi để nó dính liền text
   },
-
-  // Style nút Wanna Try (Giữ nguyên hoặc chỉnh nhỏ lại xíu)
-  wannaTryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-
-  // 👇 STYLE NÚT GO EAT (MỚI)
-  goEatBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#66BB6A', // Màu xanh chủ đạo
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    // Shadow nhẹ
-    elevation: 3,
-    shadowColor: "#66BB6A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  goEatText: {
-    color: '#fff',
+  similarRatingText: {
+    fontSize: 11,
+    color: '#666',
+    marginLeft: 3,
     fontWeight: 'bold',
-    fontSize: 13,
-    marginLeft: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center", // Căn giữa màn hình
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)", // Nền tối
-    padding: 20, // Khoảng cách lề
-  },
-
-  // 👇 THÊM STYLE CHO LỚP NỀN (Để bấm ra ngoài đóng modal)
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject, // Phủ kín màn hình
-    zIndex: -1, // Nằm dưới modalContent
-  },
-
-  modalContent: {
-    backgroundColor: "#fff",
-    width: "100%",
-    borderRadius: 20,
-    padding: 20,
-    // Shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
   },
 });
 
