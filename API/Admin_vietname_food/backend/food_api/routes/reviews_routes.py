@@ -68,26 +68,26 @@ def get_reviews_by_food(food_id):
         return jsonify({'error': str(e)}), 500
 
 
-@reviews_bp.route('/reviews', methods=['POST'])
-def create_review():
-    try:
-        data = _get_payload()
-        if 'user_id' not in data or 'food_id' not in data or 'rating' not in data:
-            return jsonify({'error': 'Thiếu user_id, food_id hoặc rating'}), 400
+# @reviews_bp.route('/reviews', methods=['POST'])
+# def create_review():
+#     try:
+#         data = _get_payload()
+#         if 'user_id' not in data or 'food_id' not in data or 'rating' not in data:
+#             return jsonify({'error': 'Thiếu user_id, food_id hoặc rating'}), 400
 
-        result = model.create(data)
-        # result: {'created': bool, 'review_id': int, 'created_at': datetime}
-        created = result.get('created')
-        rid = result.get('review_id')
-        ts = result.get('created_at')
-        ts_str = ts.isoformat() if hasattr(ts, 'isoformat') else ts
-        if created:
-            return jsonify({'message': 'Tạo review thành công', 'review_id': rid, 'created_at': ts_str}), 201
-        return jsonify({'message': 'Đã tồn tại review cho user-food', 'review_id': rid, 'created_at': ts_str}), 200
-    except ValueError as ve:
-        return jsonify({'error': str(ve)}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+#         result = model.create(data)
+#         # result: {'created': bool, 'review_id': int, 'created_at': datetime}
+#         created = result.get('created')
+#         rid = result.get('review_id')
+#         ts = result.get('created_at')
+#         ts_str = ts.isoformat() if hasattr(ts, 'isoformat') else ts
+#         if created:
+#             return jsonify({'message': 'Tạo review thành công', 'review_id': rid, 'created_at': ts_str}), 201
+#         return jsonify({'message': 'Đã tồn tại review cho user-food', 'review_id': rid, 'created_at': ts_str}), 200
+#     except ValueError as ve:
+#         return jsonify({'error': str(ve)}), 400
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
 
 @reviews_bp.route('/reviews/<int:review_id>', methods=['PUT'])
@@ -137,15 +137,43 @@ def add_review():
     conn = model.get_connection()
     cursor = conn.cursor()
     try:
-        query = """
+        # BƯỚC 1: Thêm review mới vào bảng reviews
+        query_insert = """
             INSERT INTO reviews (user_id, food_id, rating, comment)
             VALUES (%s, %s, %s, %s)
         """
-        cursor.execute(query, (user_id, food_id, rating, comment))
+        cursor.execute(query_insert, (user_id, food_id, rating, comment))
+
+        # BƯỚC 2: Tính toán lại điểm trung bình mới
+        # (Lấy trung bình cộng tất cả rating của món ăn này)
+        query_avg = "SELECT AVG(rating) FROM reviews WHERE food_id = %s"
+        cursor.execute(query_avg, (food_id,))
+        result = cursor.fetchone()
+
+        # Lấy giá trị avg, nếu chưa có thì lấy rating hiện tại, làm tròn 1 chữ số thập phân
+        new_avg_rating = result[0] if result and result[0] else rating
+        new_avg_rating = round(float(new_avg_rating), 1)
+
+        # BƯỚC 3: Cập nhật avg_rating vào bảng foods
+        query_update_food = "UPDATE foods SET avg_rating = %s WHERE food_id = %s"
+        cursor.execute(query_update_food, (new_avg_rating, food_id))
+
+        # Commit tất cả các bước cùng lúc
         conn.commit()
-        return jsonify({'message': 'Đánh giá thành công'}), 201
+
+        return jsonify({
+            'message': 'Đánh giá thành công',
+            'new_rating': new_avg_rating
+        }), 201
+
     except Exception as e:
-        # Nếu user đã review rồi (dính UNIQUE KEY) thì báo lỗi
-        return jsonify({'error': 'Bạn đã đánh giá món này rồi!'}), 400
+        conn.rollback() # Nếu lỗi thì hoàn tác
+        print("Lỗi đánh giá:", str(e)) # Log lỗi ra terminal để debug
+        # Nếu user đã review rồi (dính UNIQUE KEY)
+        if "Duplicate entry" in str(e):
+             return jsonify({'error': 'Bạn đã đánh giá món này rồi!'}), 400
+        return jsonify({'error': 'Lỗi server: ' + str(e)}), 500
+
     finally:
+        cursor.close()
         conn.close()

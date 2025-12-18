@@ -71,15 +71,38 @@ def search(query: str, limit: int = 100, offset: int = 0):
 def get_by_id(food_id: int):
     conn = get_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT food_id, category_id, name, description, main_image, origin_region_id, avg_rating, most_popular, created_at, updated_at FROM foods WHERE food_id=%s", (food_id,))
-    row = cur.fetchone()
-    if row and row.get('main_image') is not None:
-        try:
-            row['main_image'] = base64.b64encode(row['main_image']).decode('ascii')
-        except Exception:
-            row['main_image'] = None
-    cur.close(); conn.close()
-    return row
+    try:
+        cur.execute("SELECT food_id, category_id, name, description, main_image, origin_region_id, avg_rating, most_popular, created_at, updated_at FROM foods WHERE food_id=%s", (food_id,))
+        row = cur.fetchone()
+
+        if row:
+            image_data = row.get('main_image')
+
+            if image_data is not None:
+                # TRƯỜNG HỢP 1: Dữ liệu là Bytes (BLOB lưu trong DB) -> Cần convert sang Base64
+                if isinstance(image_data, bytes):
+                    try:
+                        # decode('utf-8') là chuẩn nhất để biến bytes thành string JSON
+                        row['main_image'] = base64.b64encode(image_data).decode('utf-8')
+                    except Exception as e:
+                        print(f"Error encoding image for food {food_id}: {e}")
+                        row['main_image'] = None
+
+                # TRƯỜNG HỢP 2: Dữ liệu là String (URL ảnh hoặc Base64 đã lưu dạng text)
+                elif isinstance(image_data, str):
+                    # Giữ nguyên, chỉ xóa khoảng trắng thừa nếu có
+                    row['main_image'] = image_data.strip()
+
+        return row
+
+    except Exception as e:
+        print(f"Error in get_by_id: {e}")
+        return None
+
+    finally:
+        # Đóng kết nối trong finally để đảm bảo luôn chạy dù có lỗi hay không
+        cur.close()
+        conn.close()
 
 
 def create(data: dict):
