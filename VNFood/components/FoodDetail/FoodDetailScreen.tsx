@@ -19,10 +19,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { FoodDetails } from "../../components/FoodCard/FoodCard";
+import { FoodDetails } from "../../components/FoodCard/FoodCard"; // Nhớ import đúng đường dẫn
 import { API_HOME_URL } from "@env";
 import { useAuth } from "../../app/context/AuthContext";
-import { useFood } from "../../app/context/FoodContext";
+import { useFood } from "../../app/context/FoodContext"; // Import Context
+
+// --- INTERFACES ---
 interface Review {
   review_id: number;
   user_id: number;
@@ -42,7 +44,7 @@ interface FoodImage {
 type RootStackParamList = {
   FoodDetailScreen: { foodData: FoodDetails };
   RecipeDetailScreen: { foodId: number };
-  MainTabs: { screen: string; params: { searchQuery: string } }; // Định nghĩa thêm cho TS
+  MainTabs: { screen: string; params: { searchQuery: string } };
 };
 
 type FoodDetailRouteProp = RouteProp<RootStackParamList, "FoodDetailScreen">;
@@ -57,6 +59,7 @@ const FoodDetailScreen: React.FC = () => {
   const BASE_URL = API_HOME_URL || "http://192.168.1.5:5000/api";
   const { user } = useAuth();
 
+  // State
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isWannaTry, setIsWannaTry] = useState(false);
   const [gallery, setGallery] = useState<FoodImage[]>([]);
@@ -64,15 +67,22 @@ const FoodDetailScreen: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userComment, setUserComment] = useState("");
-  const { updateFoodRating } = useFood();
 
+  // 1. Context & State Rating
+  const { updateFoodRating, categories } = useFood();
   const [currentAvgRating, setCurrentAvgRating] = useState(foodData.avg_rating);
-  // 👈 STATE MỚI: Món ăn tương tự
   const [similarFoods, setSimilarFoods] = useState<FoodDetails[]>([]);
 
   const flatListRef = useRef<FlatList>(null);
 
-  // --- 1. CHECK FAVORITE ---
+  // --- LOGIC: FIX LỖI MẤT CATEGORY NAME ---
+  const displayCategoryName = React.useMemo(() => {
+    if (foodData.category_name) return foodData.category_name;
+    const foundCat = categories.find(c => c.category_id === foodData.category_id);
+    return foundCat ? foundCat.category_name : "Món ngon";
+  }, [foodData, categories]);
+
+  // --- CHECK FAVORITE ---
   useEffect(() => {
     const checkFavoriteStatus = async () => {
       if (!user) return;
@@ -87,7 +97,7 @@ const FoodDetailScreen: React.FC = () => {
     checkFavoriteStatus();
   }, [user, foodData.food_id]);
 
-  // --- 2. TOGGLE FAVORITE ---
+  // --- TOGGLE FAVORITE ---
   const handleToggleWannaTry = async () => {
     if (!user) {
       Alert.alert("Thông báo", "Vui lòng đăng nhập để lưu món ăn!");
@@ -113,7 +123,7 @@ const FoodDetailScreen: React.FC = () => {
     }
   };
 
-// --- 3. XỬ LÝ GỬI ĐÁNH GIÁ (REVIEW) ---
+  // --- SUBMIT REVIEW ---
   const handleSubmitReview = async () => {
     if (!user) {
         Alert.alert("Yêu cầu", "Bạn cần đăng nhập để viết đánh giá.");
@@ -142,22 +152,15 @@ const FoodDetailScreen: React.FC = () => {
             Alert.alert("Thành công", "Cảm ơn đánh giá của bạn!");
             setShowReviewModal(false);
 
-            // 👇 LOGIC CẬP NHẬT RATING REALTIME (MỚI)
             if (data.new_rating) {
-                // 1. Cập nhật số sao hiển thị trên màn hình hiện tại
-                // (Đảm bảo bạn đã khai báo state currentAvgRating ở đầu component như hướng dẫn trước)
                 if (typeof setCurrentAvgRating === 'function') {
                     setCurrentAvgRating(data.new_rating);
                 }
-
-                // 2. Cập nhật số sao trong Context (để Home screen cũng đổi theo)
-                // (Đảm bảo bạn đã const { updateFoodRating } = useFood() ở đầu component)
                 updateFoodRating(Number(foodData.food_id), data.new_rating);
             }
 
-            // Cập nhật list review (Fake update để không cần gọi lại API)
             const newReview: Review = {
-                review_id: Date.now(), // ID tạm
+                review_id: Date.now(),
                 user_id: user.user_id,
                 rating: userRating,
                 comment: userComment,
@@ -165,9 +168,7 @@ const FoodDetailScreen: React.FC = () => {
                 user_name: user.full_name || user.username,
                 user_avatar: user.avatar || "",
             };
-            setReviews([newReview, ...reviews]); // Thêm lên đầu
-
-            // Reset form
+            setReviews([newReview, ...reviews]);
             setUserRating(0);
             setUserComment("");
         } else {
@@ -190,17 +191,15 @@ const FoodDetailScreen: React.FC = () => {
     } catch (error: any) { Alert.alert("Lỗi", error.message); }
   };
 
-  // --- HELPER IMAGE ---
+  // Helper xử lý ảnh
   const getSafeMainImage = () => {
     if (!foodData.main_image) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
     if (typeof foodData.main_image === "object" && (foodData.main_image as any).uri) return (foodData.main_image as any).uri;
     return String(foodData.main_image);
   };
 
-  // Helper xử lý ảnh chung (cho cả gallery và similar foods)
   const getFoodImageUri = (image: any) => {
     if (!image) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
-    // Nếu là object có uri (ImagePicker)
     if (typeof image === 'object' && image.uri) return image.uri;
     const imgString = String(image);
     if (imgString.startsWith("http") || imgString.startsWith("file") || imgString.startsWith("data:")) return imgString;
@@ -211,11 +210,10 @@ const FoodDetailScreen: React.FC = () => {
     ? gallery
     : [{ image_id: -1, image_data: getSafeMainImage(), caption: '' }];
 
-  // --- FETCH DATA (REVIEWS, IMAGES, RECOMMENDATIONS) ---
+  // Fetch Data
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        // 👈 GỌI THÊM API RECOMMEND
         const [reviewsRes, imgRes, recRes] = await Promise.all([
           fetch(`${BASE_URL}/reviews/${foodData.food_id}`),
           fetch(`${BASE_URL}/food_images/${foodData.food_id}`),
@@ -225,25 +223,21 @@ const FoodDetailScreen: React.FC = () => {
         const reviewsData = await reviewsRes.json();
         const imgData = await imgRes.json();
 
-        // Xử lý Reviews
         if (Array.isArray(reviewsData)) setReviews(reviewsData);
 
-        // Xử lý Gallery
         if (Array.isArray(imgData) && imgData.length > 0) {
           setGallery(imgData);
         } else {
+          // Fallback không có gallery
           setGallery([{ image_id: 0, image_data: getSafeMainImage(), caption: foodData.name }]);
         }
 
-        // 👈 Xử lý Recommendations
         if (recRes.ok) {
             const recData = await recRes.json();
             if (recData.recommend_foods && Array.isArray(recData.recommend_foods)) {
-                // Chỉ lấy tối đa 3 món
                 setSimilarFoods(recData.recommend_foods.slice(0, 3));
             }
         }
-
       } catch (error) {
         console.error("Lỗi tải chi tiết:", error);
       }
@@ -251,7 +245,7 @@ const FoodDetailScreen: React.FC = () => {
     fetchDetails();
   }, [foodData.food_id]);
 
-  // Auto scroll slider
+  // Auto Scroll
   useEffect(() => {
     if (displayImages.length <= 1) return;
     const intervalId = setInterval(() => {
@@ -273,14 +267,8 @@ const FoodDetailScreen: React.FC = () => {
   };
 
   const handleGoToRecipes = () => navigation.navigate("RecipeDetailScreen", { foodData: foodData });
-
   const handleGoEat = () => navigation.navigate("MainTabs", { screen: "Map", params: { searchQuery: foodData.name } });
-
-  // 👈 HÀM CHUYỂN TRANG KHI BẤM VÀO MÓN TƯƠNG TỰ
   const handlePressSimilarFood = (item: FoodDetails) => {
-      // Dùng push để mở đè lên màn hình hiện tại (tạo instance mới)
-      // Nếu navigation của bạn không hỗ trợ push, có thể dùng navigate nhưng cần set key duy nhất
-      // Ở đây dùng navigate thông thường, React Navigation mặc định sẽ push nếu cùng route name
       navigation.push("FoodDetailScreen", { foodData: item });
   };
 
@@ -288,29 +276,44 @@ const FoodDetailScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }} bounces={false}>
-        {/* Slider (Giữ nguyên) */}
+
+        {/* --- SLIDER ẢNH --- */}
         <View style={styles.sliderContainer}>
           <FlatList
-            ref={flatListRef} data={displayImages} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, index) => index.toString()} onScroll={handleScroll} onScrollToIndexFailed={onScrollToIndexFailed}
+            ref={flatListRef}
+            data={displayImages}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, index) => index.toString()}
+            onScroll={handleScroll}
+            onScrollToIndexFailed={onScrollToIndexFailed}
             renderItem={({ item }) => (
               <View style={styles.slideItem}>
                 <Image source={{ uri: getFoodImageUri(item.image_data) }} style={styles.mainImage} resizeMode="cover" />
-                {item.caption && <View style={styles.captionContainer}><Text style={styles.captionText}>{item.caption}</Text></View>}
+
+                {/* 👇 ĐÃ XÓA PHẦN RENDER CAPTION (CHÚ THÍCH) TẠI ĐÂY ĐỂ ĐỒNG BỘ UI */}
+
                 <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.imageOverlay} pointerEvents="none" />
               </View>
             )}
           />
+
           <View style={styles.topButtons}>
             <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
             <TouchableOpacity style={styles.circleBtn} onPress={handleShare}><Ionicons name="share-social-outline" size={24} color="#fff" /></TouchableOpacity>
           </View>
+
           <View style={styles.headerInfo}>
             <View style={styles.badgeContainer}>
-              <View style={styles.categoryBadge}><Text style={styles.categoryText}>{foodData.category_name}</Text></View>
+              <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryText}>{displayCategoryName}</Text>
+              </View>
               <View style={[styles.categoryBadge, { backgroundColor: "#FFC107" }]}>
                 <Ionicons name="star" size={12} color="#fff" />
-                <Text style={[styles.categoryText, { marginLeft: 4 }]}>{foodData.avg_rating ? Number(foodData.avg_rating).toFixed(1) : "New"}</Text>
+                <Text style={[styles.categoryText, { marginLeft: 4 }]}>
+                    {currentAvgRating ? Number(currentAvgRating).toFixed(1) : "New"}
+                </Text>
               </View>
             </View>
             <Text style={styles.foodNameTitle}>{foodData.name}</Text>
@@ -318,7 +321,7 @@ const FoodDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Body */}
+        {/* --- BODY --- */}
         <View style={styles.bodyContainer}>
           <View style={styles.actionBar}>
              <View style={styles.priceBox}>
@@ -344,7 +347,7 @@ const FoodDetailScreen: React.FC = () => {
           {(foodData as any).nutrition_info && (
             <View style={styles.infoBox}>
               <View style={styles.infoBoxHeader}><Ionicons name="nutrition-outline" size={20} color="#2E7D32" /><Text style={styles.infoBoxTitle}>Giá trị dinh dưỡng</Text></View>
-              <Text style={styles.infoBoxContent}>{(foodData as any).nutrition_info}</Text>
+              <Text style={styles.infoBoxContent}>{(foodData as any).nutrition_info} calo</Text>
             </View>
           )}
 
@@ -355,7 +358,6 @@ const FoodDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {/* 👈 SECTION MỚI: MÓN ĂN TƯƠNG TỰ */}
           {similarFoods.length > 0 && (
             <View style={styles.similarSection}>
                 <Text style={styles.sectionTitle}>Món ăn tương tự</Text>
@@ -388,7 +390,6 @@ const FoodDetailScreen: React.FC = () => {
 
           <View style={styles.divider} />
 
-          {/* User Rating Section */}
           <View style={styles.userRatingSection}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={styles.sectionTitle}>Đánh giá của bạn</Text>
@@ -399,7 +400,6 @@ const FoodDetailScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Reviews List */}
           <View style={styles.reviewSectionHeader}>
             <Text style={styles.sectionTitle}>Đánh giá ({reviews.length})</Text>
             <TouchableOpacity><Text style={styles.seeAllText}>Xem tất cả</Text></TouchableOpacity>
@@ -427,7 +427,6 @@ const FoodDetailScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* Bottom Recipe Button (Giữ nguyên) */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity style={styles.recipeBtn} onPress={handleGoToRecipes}>
           <LinearGradient colors={["#66BB6A", "#43A047"]} style={styles.gradientBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
@@ -437,7 +436,6 @@ const FoodDetailScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Review Modal (Giữ nguyên) */}
       <Modal visible={showReviewModal} animationType="slide" transparent={true} onRequestClose={() => setShowReviewModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
             <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowReviewModal(false)} />
@@ -469,13 +467,14 @@ const FoodDetailScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... Các style cũ giữ nguyên ...
   container: { flex: 1, backgroundColor: "#fff" },
   sliderContainer: { height: HEADER_HEIGHT, width: "100%", position: "relative" },
   slideItem: { width: screenWidth, height: HEADER_HEIGHT },
   mainImage: { width: "100%", height: "100%" },
-  captionContainer: { position: "absolute", top: 100, right: 20, backgroundColor: "rgba(0,0,0,0.5)", padding: 5, borderRadius: 5, zIndex: 5 },
-  captionText: { color: "#fff", fontSize: 12 },
+
+  // captionContainer: { position: "absolute", top: 100, right: 20, backgroundColor: "rgba(0,0,0,0.5)", padding: 5, borderRadius: 5, zIndex: 5 }, // 👈 ĐÃ BỎ STYLE NÀY VÌ KHÔNG DÙNG NỮA
+  // captionText: { color: "#fff", fontSize: 12 },
+
   imageOverlay: { ...StyleSheet.absoluteFillObject },
   topButtons: { position: "absolute", top: Platform.OS === "ios" ? 50 : 40, left: 20, right: 20, flexDirection: "row", justifyContent: "space-between", zIndex: 10 },
   circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
@@ -529,20 +528,18 @@ const styles = StyleSheet.create({
   modalBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: -1 },
   modalContent: { backgroundColor: "#fff", width: "100%", borderRadius: 20, padding: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 
-  // 👈 STYLE MỚI CHO SIMILAR FOODS
   similarSection: {
     marginBottom: 20,
   },
   similarContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Chia đều khoảng cách
+    justifyContent: 'space-between',
   },
   similarItem: {
-    width: (screenWidth - 40 - 20) / 3, // (Màn hình - Padding Container - Khoảng cách giữa các item) / 3
+    width: (screenWidth - 40 - 20) / 3,
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
-    // Shadow nhẹ cho thẻ
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -553,27 +550,26 @@ const styles = StyleSheet.create({
   },
   similarImage: {
     width: '100%',
-    height: 80, // Chiều cao ảnh thumbnail
+    height: 80,
     backgroundColor: '#eee',
   },
   similarInfo: {
-    paddingVertical: 8,  // Tăng padding dọc một chút cho thoáng
+    paddingVertical: 8,
     paddingHorizontal: 6,
-    flex: 1,             // Để phần info chiếm hết khoảng trống còn lại
-    justifyContent: 'space-between' // (Opsional) Để đẩy nội dung cho cân đối nếu cần
+    flex: 1,
+    justifyContent: 'space-between'
   },
   similarName: {
-    fontSize: 13,        // Tăng nhẹ size chữ cho dễ đọc
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,     // Khoảng cách với rating
-    // height: 32,       // 👈 XÓA HOẶC COMMENT DÒNG NÀY (Nguyên nhân gây khoảng trống)
-    lineHeight: 18,      // Thêm line-height để text 2 dòng không bị dính
+    marginBottom: 4,
+    lineHeight: 18,
   },
   similarRating: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 'auto',   // Mẹo: Đẩy rating xuống đáy nếu muốn các thẻ bằng nhau, hoặc bỏ đi để nó dính liền text
+    marginTop: 'auto',
   },
   similarRatingText: {
     fontSize: 11,
