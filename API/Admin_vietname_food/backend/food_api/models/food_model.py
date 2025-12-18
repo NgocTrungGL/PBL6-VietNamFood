@@ -26,7 +26,8 @@ def get_all(limit: int = 100, offset: int = 0):
         avg_rating,
         most_popular,
         created_at,
-        updated_at
+        updated_at,
+        label_id
     FROM foods
     ORDER BY food_id DESC
     LIMIT %s OFFSET %s
@@ -72,7 +73,7 @@ def get_by_id(food_id: int):
     conn = get_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT food_id, category_id, name, description, main_image, origin_region_id, avg_rating, most_popular, created_at, updated_at FROM foods WHERE food_id=%s", (food_id,))
+        cur.execute("SELECT food_id, category_id, name, description, main_image, origin_region_id, avg_rating, most_popular, created_at, updated_at, label_id FROM foods WHERE food_id=%s", (food_id,))
         row = cur.fetchone()
 
         if row:
