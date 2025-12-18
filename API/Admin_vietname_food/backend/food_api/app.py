@@ -87,7 +87,8 @@ frontend_origin_env = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173,http:/
 frontend_origins = [o.strip() for o in frontend_origin_env.split(',') if o.strip()]
 if not frontend_origins:
     frontend_origins = ["http://localhost:5173"]
-CORS(app, resources={r"/*": {"origins": frontend_origins}})
+# CORS(app, resources={r"/*": {"origins": frontend_origins}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Expose API under /api so frontend (Vite) can call e.g. /api/auth/login
 app.register_blueprint(admin_auth_bp, url_prefix='/api')
