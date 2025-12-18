@@ -1,6 +1,7 @@
 db_config = {
     "host": "localhost",
     "user": "root",
-    "password": "220304",
+    "password": "",
+    "port": 3307,
     "database": "vietnamese_food"
 }

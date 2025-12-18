@@ -76,6 +76,7 @@ from routes.regions_routes import regions_bp
 from routes.nutrition_routes import nutrition_bp
 from routes.chatbot_routes import chatbot_bp
 from routes.recommend_routes import recommend_bp
+from routes.food_predict_routes import food_predict_bp
 
 
 app = Flask(__name__)
@@ -105,6 +106,7 @@ app.register_blueprint(regions_bp, url_prefix='/api')
 app.register_blueprint(nutrition_bp, url_prefix='/api')
 app.register_blueprint(chatbot_bp, url_prefix='/api') #chatbot RAG 
 app.register_blueprint(recommend_bp, url_prefix='/api')
+app.register_blueprint(food_predict_bp)
 
 if __name__ == "__main__":
     # Host 0.0.0.0 để có thể truy cập từ máy khác trong LAN nếu cần
