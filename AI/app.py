@@ -13,7 +13,7 @@ CLASS_PATH = 'meta/classes.txt'
 app = Flask(__name__)
 
 # Load classes and model
-classes = load_classes(CLASS_PATH)
+# classes = load_classes(CLASS_PATH)
 
 model = MyMobileNet(
     output_classes=FOOD101_CLASSES, 

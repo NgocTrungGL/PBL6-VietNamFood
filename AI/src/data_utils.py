@@ -143,7 +143,7 @@ def prepare_dataloaders(data_dir, batch_size, num_workers, dataset_type='full'):
     
     return train_dataset, val_dataset, test_dataset, train_loader, val_loader, test_loader
 
-def load_classes(class_path='data/food-101/meta/classes.txt'):
+def load_classes(class_path='meta/classes.txt'):
     """Load class names from specified path."""
     with open(class_path) as f:
         classes = f.read().splitlines()

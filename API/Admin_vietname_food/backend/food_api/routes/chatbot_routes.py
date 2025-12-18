@@ -10,7 +10,7 @@ import sys
 chatbot_bp = Blueprint("chatbot", __name__)
 
 # ✅ Cấu hình Google API Key
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyDsRaR1V6nrWl5gVrcv4UrRSMdk6FTMpTs")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyCpuIjPPoq5QGlzfR6nfB3httlEL9f_EUk")
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
 # ✅ Fix UTF-8 encoding cho Windows console
@@ -40,7 +40,7 @@ def get_retrieval_chain():
         )
 
         llm = ChatGoogleGenerativeAI(
-            model="models/gemini-2.0-flash",
+            model="models/gemini-2.5-flash-lite",
             temperature=0.2
         )
 
