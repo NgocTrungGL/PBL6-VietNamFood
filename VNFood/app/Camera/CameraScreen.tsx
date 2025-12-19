@@ -13,6 +13,7 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystemLegacy from "expo-file-system/legacy";
+import * as ImagePicker from 'expo-image-picker'; // 👈 Import ImagePicker
 import { API_CAMERA_URL } from "@env";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -56,18 +57,37 @@ export default function CameraScreen() {
     setCameraLayout({ width, height });
   };
 
-  // Kích thước khung vuông trên màn hình
   const SQUARE_SIZE = cameraLayout.width * 0.8;
   const overlayTop = (cameraLayout.height - SQUARE_SIZE) / 2;
   const overlaySide = (cameraLayout.width - SQUARE_SIZE) / 2;
 
   const toggleFacing = () => setFacing((cur) => (cur === "back" ? "front" : "back"));
 
+  // --- 1. HÀM CHỌN ẢNH TỪ THƯ VIỆN ---
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, // Cho phép user tự crop vuông luôn cho tiện
+        aspect: [1, 1],      // Tỷ lệ 1:1
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setPhoto(uri); // Hiển thị ảnh ngay
+        await sendToModel(uri); // Gửi đi nhận diện
+      }
+    } catch (error) {
+      console.log("Error picking image:", error);
+      Alert.alert("Lỗi", "Không thể mở thư viện ảnh.");
+    }
+  };
+
   const takePhoto = async () => {
     if (!cameraRef.current) return;
     try {
       const result = await cameraRef.current.takePictureAsync();
-      // Truyền kích thước View vào để tính toán tỷ lệ cắt
       const cropped = await cropToSquare(result.uri);
       setPhoto(cropped.uri);
       await sendToModel(cropped.uri);
@@ -76,25 +96,13 @@ export default function CameraScreen() {
     }
   };
 
-  // --- LOGIC CẮT ẢNH CHÍNH XÁC THEO KHUNG NHÌN THẤY ---
   const cropToSquare = async (uri: string) => {
-    // 1. Lấy kích thước thực tế của ảnh gốc vừa chụp
     const imageInfo = await ImageManipulator.manipulateAsync(uri, [], { base64: false });
     const { width: imgW, height: imgH } = imageInfo;
-
-    // 2. Lấy kích thước của CameraView trên màn hình
     const { width: viewW, height: viewH } = cameraLayout;
 
-    // 3. Tính toán tỷ lệ scale giữa Ảnh gốc và Màn hình
-    // CameraView hiển thị kiểu "cover", nên ta tính tỷ lệ dựa trên cạnh nào bị zoom ít hơn (cạnh khớp với màn hình)
-    // Công thức: 1 pixel màn hình = bao nhiêu pixel ảnh gốc?
     const scale = Math.min(imgW / viewW, imgH / viewH);
-
-    // 4. Tính kích thước vùng cắt trên ảnh gốc
-    // Kích thước vuông trên ảnh = Kích thước vuông màn hình * tỷ lệ
     const cropSizeOnImage = SQUARE_SIZE * scale;
-
-    // 5. Tính tọa độ bắt đầu cắt (Canh giữa ảnh)
     const originX = (imgW - cropSizeOnImage) / 2;
     const originY = (imgH - cropSizeOnImage) / 2;
 
@@ -191,13 +199,20 @@ export default function CameraScreen() {
           </View>
 
           <View style={styles.buttonContainer}>
+            {/* Nút Lật Camera (Bên Trái) */}
             <TouchableOpacity style={styles.secondaryButton} onPress={toggleFacing}>
               <Ionicons name="camera-reverse-outline" size={28} color="#fff" />
             </TouchableOpacity>
+
+            {/* Nút Chụp (Ở Giữa) */}
             <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
               <View style={styles.captureInner} />
             </TouchableOpacity>
-            <View style={styles.thirddaryButton} />
+
+            {/* 👇 NÚT THƯ VIỆN ẢNH (Bên Phải - Thay thế View rỗng) */}
+            <TouchableOpacity style={styles.secondaryButton} onPress={pickImage}>
+              <Ionicons name="images-outline" size={28} color="#fff" />
+            </TouchableOpacity>
           </View>
         </>
       ) : (
@@ -213,7 +228,6 @@ export default function CameraScreen() {
               )}
           </View>
 
-          {/* CARD KẾT QUẢ */}
           {!loading && matchedFood && (
              <View style={styles.resultCard}>
                 <Text style={styles.resultTitle}>Tìm thấy món ngon! 🎉</Text>
@@ -289,12 +303,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-evenly",
     alignItems: "center",
   },
+
+  // Nút phụ (Tròn nhỏ 2 bên)
   secondaryButton: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: "rgba(81, 187, 20, 1)",
-    justifyContent: "center", alignItems: "center",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(0,0,0,0.4)", // Đổi màu nền tối hơn xíu cho dễ nhìn
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)"
   },
-  thirddaryButton: { width: 50, height: 50 },
+
   captureButton: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: "rgba(255,255,255,0.3)",
@@ -305,7 +326,6 @@ const styles = StyleSheet.create({
   textButton: { color: "#fff", fontWeight: "bold" },
   button: { padding: 15, backgroundColor: "#66BB6A", borderRadius: 10, alignSelf: 'center', marginTop: 20 },
 
-  // --- RESULT SCREEN ---
   resultContainer: {
         flex: 1,
         backgroundColor: '#fff',
@@ -334,8 +354,6 @@ const styles = StyleSheet.create({
       fontSize: 16,
       fontWeight: '600'
   },
-
-  // CARD KẾT QUẢ
   resultCard: {
       position: 'absolute',
       bottom: 40,
