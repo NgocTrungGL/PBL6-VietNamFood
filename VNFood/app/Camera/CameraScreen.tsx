@@ -16,24 +16,22 @@ import * as FileSystemLegacy from "expo-file-system/legacy";
 import { API_CAMERA_URL } from "@env";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { useFood } from "../context/FoodContext"; // 👈 Import Context để lấy dữ liệu món ăn
+import { useFood } from "../context/FoodContext";
 import { FoodDetails } from "../../components/FoodCard/FoodCard";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function CameraScreen() {
   const navigation = useNavigation<any>();
-  const { foods } = useFood(); // 👈 Lấy danh sách món ăn từ Context
+  const { foods } = useFood();
 
   const [facing, setFacing] = useState<CameraType>("back");
   const [permission, requestPermission] = useCameraPermissions();
   const [photo, setPhoto] = useState<string | null>(null);
 
-  // State lưu món ăn tìm thấy
   const [matchedFood, setMatchedFood] = useState<FoodDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // State lưu kích thước thật của CameraView
   const [cameraLayout, setCameraLayout] = useState({
     width: screenWidth,
     height: screenHeight,
@@ -58,6 +56,7 @@ export default function CameraScreen() {
     setCameraLayout({ width, height });
   };
 
+  // Kích thước khung vuông trên màn hình
   const SQUARE_SIZE = cameraLayout.width * 0.8;
   const overlayTop = (cameraLayout.height - SQUARE_SIZE) / 2;
   const overlaySide = (cameraLayout.width - SQUARE_SIZE) / 2;
@@ -68,6 +67,7 @@ export default function CameraScreen() {
     if (!cameraRef.current) return;
     try {
       const result = await cameraRef.current.takePictureAsync();
+      // Truyền kích thước View vào để tính toán tỷ lệ cắt
       const cropped = await cropToSquare(result.uri);
       setPhoto(cropped.uri);
       await sendToModel(cropped.uri);
@@ -76,29 +76,52 @@ export default function CameraScreen() {
     }
   };
 
+  // --- LOGIC CẮT ẢNH CHÍNH XÁC THEO KHUNG NHÌN THẤY ---
   const cropToSquare = async (uri: string) => {
+    // 1. Lấy kích thước thực tế của ảnh gốc vừa chụp
     const imageInfo = await ImageManipulator.manipulateAsync(uri, [], { base64: false });
-    const side = Math.min(imageInfo.width, imageInfo.height);
-    const left = (imageInfo.width - side) / 2;
-    const top = (imageInfo.height - side) / 2;
+    const { width: imgW, height: imgH } = imageInfo;
+
+    // 2. Lấy kích thước của CameraView trên màn hình
+    const { width: viewW, height: viewH } = cameraLayout;
+
+    // 3. Tính toán tỷ lệ scale giữa Ảnh gốc và Màn hình
+    // CameraView hiển thị kiểu "cover", nên ta tính tỷ lệ dựa trên cạnh nào bị zoom ít hơn (cạnh khớp với màn hình)
+    // Công thức: 1 pixel màn hình = bao nhiêu pixel ảnh gốc?
+    const scale = Math.min(imgW / viewW, imgH / viewH);
+
+    // 4. Tính kích thước vùng cắt trên ảnh gốc
+    // Kích thước vuông trên ảnh = Kích thước vuông màn hình * tỷ lệ
+    const cropSizeOnImage = SQUARE_SIZE * scale;
+
+    // 5. Tính tọa độ bắt đầu cắt (Canh giữa ảnh)
+    const originX = (imgW - cropSizeOnImage) / 2;
+    const originY = (imgH - cropSizeOnImage) / 2;
 
     return await ImageManipulator.manipulateAsync(
       uri,
-      [{ crop: { originX: left, originY: top, width: side, height: side } }],
+      [{
+        crop: {
+          originX: Math.max(0, originX),
+          originY: Math.max(0, originY),
+          width: cropSizeOnImage,
+          height: cropSizeOnImage
+        }
+      }],
       { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
     );
   };
 
   const sendToModel = async (uri: string) => {
     setLoading(true);
-    setMatchedFood(null); // Reset kết quả cũ
+    setMatchedFood(null);
 
     try {
       const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
         encoding: FileSystemLegacy.EncodingType.Base64,
       });
 
-      console.log("Sending to:", API_CAMERA_URL);
+      console.log("Sending to AI:", API_CAMERA_URL);
       const response = await fetch(`${API_CAMERA_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,27 +129,26 @@ export default function CameraScreen() {
       });
 
       const data = await response.json();
-      console.log("AI Response:", data); // VD: {"class_id": 19, "class_name": "bánh mì"}
+      console.log("AI Response:", data);
 
-      if (data && data.class_name) {
-          // 🔍 TÌM KIẾM TRONG DANH SÁCH MÓN ĂN CỦA APP
-          // Chuẩn hóa chuỗi để so sánh (lowercase, trim)
-          const detectedName = data.class_name.toLowerCase().trim();
+      if (data && data.class_id !== undefined) {
+          const aiClassId = Number(data.class_id);
 
-          // Tìm món ăn có tên chứa từ khóa nhận diện được
-          // (Logic này có thể tùy chỉnh: chính xác 100% hoặc tương đối)
-          const found = foods.find(f => f.name.toLowerCase().includes(detectedName));
+          const found = foods.find(f => {
+              if (f.label_id === null || f.label_id === undefined) return false;
+              return Number(f.label_id) === aiClassId;
+          });
 
           if (found) {
               setMatchedFood(found);
           } else {
-              // Trường hợp AI nhận ra "bánh mì" nhưng trong DB chưa có món nào tên khớp
-              // Ta có thể tạo một object tạm hoặc báo lỗi
-              // Alert.alert("Thông báo", `AI nhận diện là: "${data.class_name}" nhưng chưa tìm thấy thông tin chi tiết trong Database.`);
-              Alert.alert("Sorry", "Không nhận diện được món ăn.");
+              Alert.alert(
+                "Rất tiếc",
+                `AI nhận diện là "${data.class_name}" nhưng món này chưa có trong dữ liệu ứng dụng.`
+              );
           }
       } else {
-          Alert.alert("Sorry", "Không nhận diện được món ăn.");
+          Alert.alert("Xin lỗi", "Không nhận diện được món ăn này.");
       }
 
     } catch (error) {
@@ -137,19 +159,14 @@ export default function CameraScreen() {
     }
   };
 
-  // Hàm xử lý khi bấm nút "Xem Chi Tiết"
   const handleGoToDetail = () => {
       if (matchedFood) {
-          // Reset Camera để lần sau quay lại là màn hình chụp mới
           setPhoto(null);
           setMatchedFood(null);
-
-          // Chuyển trang
           navigation.navigate("FoodDetailScreen", { foodData: matchedFood });
       }
   };
 
-  // Hàm lấy ảnh an toàn
   const getFoodImageUri = (image: any) => {
       if (!image) return "https://cdn-icons-png.flaticon.com/512/135/135161.png";
       if (typeof image === 'object' && image.uri) return image.uri;
@@ -166,7 +183,6 @@ export default function CameraScreen() {
         <>
           <CameraView style={styles.camera} facing={facing} ref={cameraRef} onLayout={onCameraLayout} />
           <View style={styles.overlayContainer} pointerEvents="none">
-            {/* ... (Phần Overlay Khung Ảnh Giữ Nguyên) ... */}
             <Image source={frameBgImage} style={[styles.imageOverlay, { top: 0, height: overlayTop, width: cameraLayout.width }]} resizeMode="cover" />
             <Image source={frameBgImage} style={[styles.imageOverlay, { bottom: 0, height: overlayTop, width: cameraLayout.width }]} resizeMode="cover" />
             <Image source={frameBgImage} style={[styles.imageOverlay, { top: overlayTop, height: SQUARE_SIZE, left: 0, width: overlaySide }]} resizeMode="cover" />
@@ -185,10 +201,8 @@ export default function CameraScreen() {
           </View>
         </>
       ) : (
-        // --- GIAO DIỆN SAU KHI CHỤP (RESULT SCREEN) ---
+        // --- RESULT SCREEN ---
         <View style={styles.resultContainer}>
-
-          {/* Ảnh vừa chụp (làm nền mờ hoặc hiện ở trên) */}
           <View style={styles.capturedImageContainer}>
               <Image source={{ uri: photo }} style={styles.capturedImage} />
               {loading && (
@@ -205,7 +219,6 @@ export default function CameraScreen() {
                 <Text style={styles.resultTitle}>Tìm thấy món ngon! 🎉</Text>
 
                 <View style={styles.foodInfoRow}>
-                    {/* Ảnh đại diện món ăn từ DB (để user so sánh) */}
                     <Image
                         source={{ uri: getFoodImageUri(matchedFood.main_image) }}
                         style={styles.foodThumb}
@@ -215,7 +228,6 @@ export default function CameraScreen() {
                         <Text style={styles.foodDesc} numberOfLines={2}>
                             {matchedFood.description || "Món ăn hấp dẫn đang chờ bạn khám phá."}
                         </Text>
-                        {/* Rating nhỏ */}
                         <View style={styles.ratingBadge}>
                             <Ionicons name="star" size={12} color="#fff" />
                             <Text style={styles.ratingText}>{matchedFood.avg_rating ? matchedFood.avg_rating.toFixed(1) : "New"}</Text>
@@ -223,7 +235,6 @@ export default function CameraScreen() {
                     </View>
                 </View>
 
-                {/* Nút Hành Động */}
                 <TouchableOpacity style={styles.detailButton} onPress={handleGoToDetail}>
                     <Text style={styles.detailButtonText}>Xem Chi Tiết & Công Thức</Text>
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
@@ -233,12 +244,11 @@ export default function CameraScreen() {
                     style={styles.retryLink}
                     onPress={() => { setPhoto(null); setMatchedFood(null); }}
                 >
-                    <Text style={styles.retryText}>Không đúng? Chụp lại</Text>
+                    <Text style={styles.retryText}>Chụp lại</Text>
                 </TouchableOpacity>
              </View>
           )}
 
-          {/* Nếu lỗi hoặc không tìm thấy nhưng đã load xong */}
           {!loading && !matchedFood && (
               <TouchableOpacity
                 style={styles.retryButtonLarge}
@@ -248,7 +258,6 @@ export default function CameraScreen() {
                   <Text style={styles.retryTextLarge}>Thử lại</Text>
               </TouchableOpacity>
           )}
-
         </View>
       )}
     </View>
@@ -293,27 +302,25 @@ const styles = StyleSheet.create({
     borderWidth: 4, borderColor: "rgba(81, 187, 20, 1)",
   },
   captureInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#66BB6A" },
-
   textButton: { color: "#fff", fontWeight: "bold" },
   button: { padding: 15, backgroundColor: "#66BB6A", borderRadius: 10, alignSelf: 'center', marginTop: 20 },
 
-  // --- STYLE MỚI CHO RESULT SCREEN ---
+  // --- RESULT SCREEN ---
   resultContainer: {
         flex: 1,
-        // backgroundColor: '#111', // 👈 XÓA HOẶC COMMENT DÒNG NÀY
-        backgroundColor: '#fff',    // 👉 THÊM DÒNG NÀY: Nền trắng
+        backgroundColor: '#fff',
         alignItems: 'center',
         justifyContent: 'center',
   },
   capturedImageContainer: {
       width: '100%',
-      height: '55%', // Ảnh chụp chiếm phần trên
+      height: '55%',
       position: 'relative',
   },
   capturedImage: {
       width: '100%',
       height: '100%',
-      resizeMode: 'contain', // Hiển thị trọn vẹn ảnh
+      resizeMode: 'contain',
   },
   loadingOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -392,8 +399,6 @@ const styles = StyleSheet.create({
       fontWeight: 'bold',
       marginLeft: 4,
   },
-
-  // Nút Hành Động
   detailButton: {
       backgroundColor: '#2E7D32',
       paddingVertical: 14,
@@ -418,8 +423,6 @@ const styles = StyleSheet.create({
       fontSize: 13,
       textDecorationLine: 'underline',
   },
-
-  // Nút Retry to đùng khi lỗi
   retryButtonLarge: {
       marginTop: 30,
       backgroundColor: '#FF5252',

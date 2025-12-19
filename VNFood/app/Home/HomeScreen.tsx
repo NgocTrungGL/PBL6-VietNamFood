@@ -84,14 +84,16 @@ const HomeScreen: React.FC = () => {
   // State UI
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const [randomCategory, setRandomCategory] = useState<Category | null>(null);
+
+  // 👇 THAY ĐỔI: Lưu trữ 2 danh mục Random
+  const [randomSelection, setRandomSelection] = useState<Category[]>([]);
 
   // State cho Modal Gợi ý
   const [showRecommendationModal, setShowRecommendationModal] = useState(false);
   const [recommendedFoods, setRecommendedFoods] = useState<FoodDetails[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  // --- LOGIC GỢI Ý ---
+  // --- LOGIC GỢI Ý (Giữ nguyên) ---
   useEffect(() => {
     const fetchRecommendations = async () => {
       if (!user) return;
@@ -116,33 +118,39 @@ const HomeScreen: React.FC = () => {
     fetchRecommendations();
   }, [user]);
 
-  // --- LOGIC RANDOM CATEGORY ---
+  // --- 👇 LOGIC MỚI: RANDOM 2 DANH MỤC KHÁC NHAU ---
   useEffect(() => {
-    if (categories.length > 0 && !randomCategory) {
-      const nonDrink = categories.filter(
-        (c) =>
-          c.category_name &&
-          !c.category_name.includes("Chè") &&
-          !c.category_name.toLowerCase().includes("drink")
-      );
+    // Chỉ chạy khi có categories và chưa chọn random
+    if (categories.length >= 2 && randomSelection.length === 0) {
+      // 1. Copy mảng categories để không ảnh hưởng dữ liệu gốc
+      const shuffled = [...categories];
 
-      if (nonDrink.length > 0) {
-        const random = Math.floor(Math.random() * nonDrink.length);
-        setRandomCategory(nonDrink[random]);
-      }
+      // 2. Xáo trộn mảng (Fisher-Yates shuffle hoặc sort random đơn giản)
+      shuffled.sort(() => 0.5 - Math.random());
+
+      // 3. Lấy 2 phần tử đầu tiên sau khi xáo trộn
+      setRandomSelection(shuffled.slice(0, 2));
     }
   }, [categories]);
 
   // --- FILTERS ---
+  // 1. Hàng cố định: Most Popular (Giữ nguyên)
   const mostPopularFoods = useMemo(() => foods.filter((f) => f.most_popular), [foods]);
-  const mostPopularDrinks = useMemo(
-    () => foods.filter((f) => f.category_name.toLowerCase().includes("drink") || f.category_name.toLowerCase().includes("thức uống") || f.category_name.includes("Chè")),
-    [foods]
-  );
-  const randomCategoryFoods = useMemo(() => {
-    if (!randomCategory) return [];
-    return foods.filter((f) => f.category_name === randomCategory.category_name);
-  }, [randomCategory, foods]);
+
+  // 👇 2. Hàng Random 1
+  const randomFoods1 = useMemo(() => {
+    if (!randomSelection[0]) return [];
+    // Lọc món ăn theo category_id của danh mục random thứ nhất
+    return foods.filter((f) => f.category_id === randomSelection[0].category_id);
+  }, [randomSelection, foods]);
+
+  // 👇 3. Hàng Random 2
+  const randomFoods2 = useMemo(() => {
+    if (!randomSelection[1]) return [];
+    // Lọc món ăn theo category_id của danh mục random thứ hai
+    return foods.filter((f) => f.category_id === randomSelection[1].category_id);
+  }, [randomSelection, foods]);
+
 
   const handleSelectRegion = (region: Region) => {
     setSelectedRegion(region);
@@ -178,9 +186,9 @@ const HomeScreen: React.FC = () => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
         {/* Header Logo */}
-        <View style={styles.headerContainer}>
+        {/* <View style={styles.headerContainer}>
           <Image source={require('../../assets/logo.jpg')} style={styles.logoBanner} />
-        </View>
+        </View> */}
 
         {/* Carousel Banner */}
         <Banner />
@@ -194,27 +202,30 @@ const HomeScreen: React.FC = () => {
         {/* Main Content */}
         <ImageBackground source={require("../../assets/bgimg.jpg")} style={styles.background} resizeMode="cover">
           <View style={styles.overlay}>
-            {/* Filter Chips */}
-            {/* <View style={styles.filterContainer}>
-              <TouchableOpacity style={styles.filterButton} onPress={() => setShowLocationModal(true)}>
-                <Text style={styles.filterText}>📍 {selectedRegion ? selectedRegion.region_name : "Location"}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterText}>⭐ Popularity</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterText}>🍽️ Category</Text>
-              </TouchableOpacity>
-            </View> */}
+            {/* Filter Chips (Tạm ẩn như code cũ của bạn) */}
+             {/* <View style={styles.filterContainer}> ... </View> */}
 
-            {/* Food Lists */}
+            {/* --- SECTION 1: CỐ ĐỊNH (MOST POPULAR) --- */}
             <FoodSection title="Most popular Vietnamese food" data={mostPopularFoods} />
-            <FoodSection title="Most popular Vietnamese drinks" data={mostPopularDrinks} />
-            {randomCategory && (
-              <FoodSection title={`Most popular Vietnamese ${randomCategory.category_name}`} data={randomCategoryFoods} />
+
+            {/* --- SECTION 2: RANDOM CATEGORY 1 --- */}
+            {randomSelection[0] && (
+              <FoodSection
+                title={`Khám phá: ${randomSelection[0].category_name}`}
+                data={randomFoods1}
+              />
             )}
 
-            <View style={{ height: 20 }} />
+            {/* --- SECTION 3: RANDOM CATEGORY 2 --- */}
+            {randomSelection[1] && (
+              <FoodSection
+                title={`Bạn nên thử : ${randomSelection[1].category_name}`}
+                data={randomFoods2}
+              />
+            )}
+
+            {/* Padding bottom để không dính BottomTab */}
+            <View style={{ height: 25 }} />
           </View>
         </ImageBackground>
       </ScrollView>
@@ -282,7 +293,7 @@ const HomeScreen: React.FC = () => {
                             {/* 2. Tên Món */}
                             <Text style={styles.recItemName} numberOfLines={1}>{item.name}</Text>
 
-                            {/* 3. Mô Tả (Thay vì Location) */}
+                            {/* 3. Mô Tả */}
                             <Text style={styles.recItemDesc} numberOfLines={2}>
                                 {item.description || "Món ăn truyền thống đậm đà bản sắc Việt..."}
                             </Text>
@@ -312,7 +323,6 @@ const HomeScreen: React.FC = () => {
 
 // --- STYLES ---
 const styles = StyleSheet.create({
-  // ... Styles cũ giữ nguyên ...
   container: { flex: 1, backgroundColor: "#fff" },
   headerContainer: { width: "100%", height: 90, backgroundColor: "#fff", overflow: "hidden", elevation: 5, zIndex: 10 },
   logoBanner: { width: "100%", height: "100%", resizeMode: "cover" },
@@ -336,7 +346,7 @@ const styles = StyleSheet.create({
   closeButton: { marginTop: 20, backgroundColor: "#66BB6A", padding: 15, borderRadius: 12, alignItems: "center" },
   closeButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 
-  // --- STYLES MODAL RECOMMENDATION (DESIGN XANH + MÔ TẢ) ---
+  // --- STYLES MODAL RECOMMENDATION ---
   recModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -381,7 +391,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
 
-  // Style cho từng Item
   recItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -409,12 +418,11 @@ const styles = StyleSheet.create({
     color: '#1B5E20',
     marginBottom: 4,
   },
-  // 👇 STYLE MỚI CHO MÔ TẢ (DESCRIPTION)
   recItemDesc: {
     fontSize: 12,
-    color: '#558B2F', // Màu xanh cỏ úa
+    color: '#558B2F',
     marginBottom: 6,
-    lineHeight: 16, // Khoảng cách dòng cho dễ đọc
+    lineHeight: 16,
   },
   recItemMeta: {
     flexDirection: 'row',
