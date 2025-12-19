@@ -28,6 +28,7 @@ interface RawFood {
   origin_region_id: number | null;
   nutrition_info: string | null;
   ingredients: string | null;
+  label_id: number | null; // 👈 THÊM TRƯỜNG NÀY ĐỂ MAPPING VỚI AI
 }
 
 // --- 2. ĐỊNH NGHĨA CONTEXT ---
@@ -37,7 +38,7 @@ interface FoodContextType {
   regions: Region[];
   loading: boolean;
   refreshData: () => Promise<void>;
-  updateFoodRating: (foodId: number, newRating: number) => void; // Hàm cập nhật rating realtime
+  updateFoodRating: (foodId: number, newRating: number) => void;
 }
 
 const FoodContext = createContext<FoodContextType | null>(null);
@@ -127,6 +128,7 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
         // Các trường bổ sung cho Detail Screen
         nutrition_info: food.nutrition_info,
         ingredients: food.ingredients,
+        label_id: food.label_id, // 👈 MAP DỮ LIỆU LABEL_ID RA NGOÀI
       };
     });
   }, [rawFoods, categories, regions]);
@@ -152,7 +154,7 @@ export const FoodProvider = ({ children }: { children: React.ReactNode }) => {
         regions,
         loading,
         refreshData: fetchData,
-        updateFoodRating // Export hàm này để các màn hình con sử dụng
+        updateFoodRating
       }}
     >
       {children}

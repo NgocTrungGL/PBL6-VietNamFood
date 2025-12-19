@@ -5,9 +5,9 @@ import BannerItem from "./BannerItem";
 const { width } = Dimensions.get("window");
 
 const banners = [
-  require("../../assets/images/buncha.jpg"),
-  require("../../assets/banners/bunbohue.jpg"),
-  require("../../assets/banners/cafe.jpg"),
+  require("../../assets/banners/Cau-Vang.jpg"),
+  require("../../assets/banners/fansipan.png"),
+  require("../../assets/banners/ha_long_bay.jpg"),
 ];
 
 export default function Banner() {

@@ -11,6 +11,7 @@ export interface FoodDetails {
   description?: string;
   most_popular: boolean;
   category_id: number;
+  label_id?: number | null;
 }
 
 interface FoodCardProps {
